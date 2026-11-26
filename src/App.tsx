@@ -18,18 +18,24 @@ import {
   QrCode,
   ShieldCheck,
   Star,
+  Users,
   Wrench,
 } from 'lucide-react';
+import { AdminVerificationPanel } from './components/AdminVerificationPanel';
 import { CustomerSignInPage, MechanicSignInPage } from './components/AuthPortals';
+import { PendingIdentityDraft, saveIdentityVerification } from './components/IdentityVerificationCard';
 import { MechanicWorkspace } from './components/MechanicWorkspace';
 import { MotoristWorkspace } from './components/MotoristWorkspace';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OperationType, auth, db, googleProvider, handleFirestoreError } from './firebase';
 import {
+  ADMIN_EMAIL,
   HERO_MECHANIC_IMAGE,
+  IdentityVerification,
   LIMITS,
   MECHANIC_AVATARS,
+  MIN_MECHANIC_TEAM_SIZE,
   MONTHLY_FEE_USD,
   MechanicProfile,
   TRIAL_DAYS,
@@ -46,24 +52,24 @@ function getInitialAuthView(): AuthView {
   return 'landing';
 }
 
-const FEATURED_MECHANICS = [
+const FEATURED_MECHANIC_COMPANIES = [
   {
-    name: 'Mike Vance',
-    specialty: 'Engine, Alternator & Belts',
+    name: 'Vance Mobile Auto Group',
+    specialty: 'Engine, Alternator & Belts · 4 mechanics',
     rating: '4.9',
     jobs: '318 repairs',
     avatar: MECHANIC_AVATARS[0],
   },
   {
-    name: 'Sarah Jenkins',
-    specialty: 'Diagnostics, Battery & Lockout',
+    name: 'Jenkins Roadside Collective',
+    specialty: 'Diagnostics, Battery & Lockout · 3 mechanics',
     rating: '5.0',
     jobs: '264 repairs',
     avatar: MECHANIC_AVATARS[1],
   },
   {
-    name: 'Mark Torres',
-    specialty: 'Heavy Tires, Jacks & Recovery',
+    name: 'Torres Fleet & Tire Co.',
+    specialty: 'Heavy Tires, Jacks & Recovery · 5 mechanics',
     rating: '4.9',
     jobs: '412 repairs',
     avatar: MECHANIC_AVATARS[2],
@@ -77,14 +83,21 @@ export default function App() {
   const [signingIn, setSigningIn] = useState(false);
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [identityVerification, setIdentityVerification] = useState<IdentityVerification | null>(null);
   const [mechanics, setMechanics] = useState<MechanicProfile[]>([]);
   const [myMechanic, setMyMechanic] = useState<MechanicProfile | null>(null);
   const [activeRole, setActiveRole] = useState<UserRole>('motorist');
   const [billingFocusCounter, setBillingFocusCounter] = useState(0);
+  const [showAdminReviews, setShowAdminReviews] = useState(false);
   const [authView, setAuthView] = useState<AuthView>(getInitialAuthView);
 
   const pendingRoleRef = useRef<UserRole | null>(null);
   const pendingVehicleRef = useRef<string | undefined>(undefined);
+  const pendingIdentityRef = useRef<PendingIdentityDraft | null>(null);
+
+  const isAdminUser = Boolean(
+    user && user.email === ADMIN_EMAIL && user.emailVerified
+  );
 
   const navigateAuthView = (view: AuthView, anchor?: string) => {
     setAuthError(null);
@@ -114,7 +127,7 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Load or bootstrap user profile when signed in
+  // Load or bootstrap user profile when signed in, and flush any pre-signin ID/Passport draft
   useEffect(() => {
     if (!authReady || !user) {
       setUserProfile(null);
@@ -128,6 +141,7 @@ export default function App() {
       (snap) => {
         const requestedRole = pendingRoleRef.current;
         const requestedVehicle = pendingVehicleRef.current;
+        const queuedIdentity = pendingIdentityRef.current;
 
         if (snap.exists()) {
           const data = snap.data() as UserProfile;
@@ -154,6 +168,15 @@ export default function App() {
           } else {
             setActiveRole(data.role);
           }
+
+          if (queuedIdentity) {
+            pendingIdentityRef.current = null;
+            void saveIdentityVerification(
+              user.uid,
+              queuedIdentity,
+              Boolean(data.identityVerificationStatus && data.identityVerificationStatus !== 'unverified')
+            );
+          }
         } else {
           const initialRole = requestedRole || 'motorist';
           const initialVehicle = requestedVehicle || '2020 Toyota Corolla';
@@ -170,17 +193,41 @@ export default function App() {
             email: user.email || 'user@wrenchbid.app',
             role: initialRole,
             vehicleSummary: initialVehicle,
+            identityVerificationStatus: 'unverified',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
-          void setDoc(userRef, newProfile).catch((err) =>
-            handleFirestoreError(err, OperationType.CREATE, userPath)
-          );
+          void setDoc(userRef, newProfile)
+            .then(() => {
+              if (queuedIdentity) {
+                pendingIdentityRef.current = null;
+                return saveIdentityVerification(user.uid, queuedIdentity, false);
+              }
+              return undefined;
+            })
+            .catch((err) => handleFirestoreError(err, OperationType.CREATE, userPath));
         }
       },
       (err) => handleFirestoreError(err, OperationType.GET, userPath)
     );
 
+    return () => unsub();
+  }, [authReady, user]);
+
+  // Listen to signed-in user's strictly private original ID / Passport verification record
+  useEffect(() => {
+    if (!authReady || !user) {
+      setIdentityVerification(null);
+      return;
+    }
+    const verPath = `identityVerifications/${user.uid}`;
+    const unsub = onSnapshot(
+      doc(db, 'identityVerifications', user.uid),
+      (snap) => {
+        setIdentityVerification(snap.exists() ? (snap.data() as IdentityVerification) : null);
+      },
+      (err) => handleFirestoreError(err, OperationType.GET, verPath)
+    );
     return () => unsub();
   }, [authReady, user]);
 
@@ -201,7 +248,7 @@ export default function App() {
     return () => unsub();
   }, [authReady, user]);
 
-  // Listen directly to signed-in user's mechanic profile (works even if offline)
+  // Listen directly to signed-in user's mechanic company profile (works even if offline)
   useEffect(() => {
     if (!authReady || !user) {
       setMyMechanic(null);
@@ -218,16 +265,22 @@ export default function App() {
     return () => unsub();
   }, [authReady, user]);
 
-  const handleSignInForRole = async (role: UserRole, vehicleSummary?: string) => {
+  const handleSignInForRole = async (
+    role: UserRole,
+    vehicleSummary?: string,
+    identityDraft?: PendingIdentityDraft | null
+  ) => {
     setSigningIn(true);
     setAuthError(null);
     pendingRoleRef.current = role;
     pendingVehicleRef.current = vehicleSummary;
+    pendingIdentityRef.current = identityDraft ?? null;
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
       pendingRoleRef.current = null;
       pendingVehicleRef.current = undefined;
+      pendingIdentityRef.current = null;
       const msg = err instanceof Error ? err.message : 'Unable to sign in with Google.';
       setAuthError(msg);
     } finally {
@@ -237,12 +290,14 @@ export default function App() {
 
   const handleSignOut = async () => {
     const returnPortal: AuthView = activeRole === 'mechanic' ? 'mechanic_signin' : 'customer_signin';
+    setShowAdminReviews(false);
     await signOut(auth);
     navigateAuthView(returnPortal);
   };
 
   const handleSwitchRole = async (role: UserRole) => {
     setActiveRole(role);
+    setShowAdminReviews(false);
     if (user && userProfile && userProfile.role !== role) {
       try {
         await updateDoc(doc(db, 'users', user.uid), {
@@ -316,7 +371,9 @@ export default function App() {
                 type="button"
                 onClick={() => void handleSwitchRole('motorist')}
                 className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
-                  activeRole === 'motorist' ? 'text-slate-900 font-semibold underline underline-offset-4' : ''
+                  activeRole === 'motorist' && !showAdminReviews
+                    ? 'text-slate-900 font-semibold underline underline-offset-4'
+                    : ''
                 }`}
               >
                 Motorist
@@ -325,10 +382,12 @@ export default function App() {
                 type="button"
                 onClick={() => void handleSwitchRole('mechanic')}
                 className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
-                  activeRole === 'mechanic' ? 'text-slate-900 font-semibold underline underline-offset-4' : ''
+                  activeRole === 'mechanic' && !showAdminReviews
+                    ? 'text-slate-900 font-semibold underline underline-offset-4'
+                    : ''
                 }`}
               >
-                Mechanic
+                Mechanic Company
               </button>
               <button
                 type="button"
@@ -337,12 +396,24 @@ export default function App() {
               >
                 Billing
               </button>
-              <a
-                href="#pricing-info"
-                className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0"
-              >
-                $4/mo Plan
-              </a>
+              {isAdminUser ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAdminReviews((v) => !v)}
+                  className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
+                    showAdminReviews ? 'text-orange-700 font-semibold underline underline-offset-4' : ''
+                  }`}
+                >
+                  ID Reviews
+                </button>
+              ) : (
+                <a
+                  href="#pricing-info"
+                  className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0"
+                >
+                  $4/mo Plan
+                </a>
+              )}
             </nav>
           )}
 
@@ -387,9 +458,11 @@ export default function App() {
                   Signed in as {userProfile.displayName} · {userProfile.email}
                 </div>
                 <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 mt-0.5 text-balance">
-                  {activeRole === 'motorist'
+                  {showAdminReviews
+                    ? 'Identity & Background Check Review Queue'
+                    : activeRole === 'motorist'
                     ? 'Request a Roadside Mechanic'
-                    : 'Mechanic Dispatch, Profile & Billing'}
+                    : 'Mechanic Company Dispatch, Team & Billing'}
                 </h1>
               </div>
 
@@ -399,7 +472,7 @@ export default function App() {
                     type="button"
                     onClick={() => void handleSwitchRole('motorist')}
                     className={`min-h-[44px] px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-colors ${
-                      activeRole === 'motorist'
+                      activeRole === 'motorist' && !showAdminReviews
                         ? 'bg-white text-slate-900 shadow-sm'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
@@ -411,24 +484,41 @@ export default function App() {
                     type="button"
                     onClick={() => void handleSwitchRole('mechanic')}
                     className={`min-h-[44px] px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-colors ${
-                      activeRole === 'mechanic'
+                      activeRole === 'mechanic' && !showAdminReviews
                         ? 'bg-white text-slate-900 shadow-sm'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <Wrench className="w-4 h-4 text-slate-800" />
-                    Mechanic Mode
+                    Mechanic Company
                   </button>
+                  {isAdminUser && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminReviews((v) => !v)}
+                      className={`min-h-[44px] px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+                        showAdminReviews
+                          ? 'bg-white text-orange-700 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <ShieldCheck className="w-4 h-4 text-orange-600" />
+                      ID Reviews
+                    </button>
+                  )}
                 </div>
 
                 <PWAInstallButton />
               </div>
             </div>
 
-            {activeRole === 'motorist' ? (
+            {showAdminReviews && isAdminUser && user.email ? (
+              <AdminVerificationPanel adminEmail={user.email} />
+            ) : activeRole === 'motorist' ? (
               <MotoristWorkspace
                 uid={user.uid}
                 userProfile={userProfile}
+                identityVerification={identityVerification}
                 mechanics={mechanics}
                 onSwitchToMechanic={() => void handleSwitchRole('mechanic')}
               />
@@ -436,6 +526,7 @@ export default function App() {
               <MechanicWorkspace
                 uid={user.uid}
                 userProfile={userProfile}
+                identityVerification={identityVerification}
                 mechanics={mechanics}
                 myMechanic={myMechanic}
                 billingFocusCounter={billingFocusCounter}
@@ -447,9 +538,10 @@ export default function App() {
               className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm"
             >
               <div className="text-slate-700">
-                <strong className="text-slate-900">Mechanic Billing Policy:</strong> Every verified mechanic gets a full{' '}
+                <strong className="text-slate-900">Mechanic Company Policy:</strong> Mechanic teams of{' '}
+                <strong>{MIN_MECHANIC_TEAM_SIZE}+ technicians</strong> with ID verification receive a full{' '}
                 <strong>{TRIAL_DAYS}-day free trial</strong>, then a flat{' '}
-                <strong className="tabular-nums">${MONTHLY_FEE_USD.toFixed(2)}/month</strong> subscription with 0% commission on QR payments.
+                <strong className="tabular-nums">${MONTHLY_FEE_USD.toFixed(2)}/month</strong> subscription with 0% commission on customer repairs.
               </div>
               <button
                 type="button"
@@ -464,7 +556,7 @@ export default function App() {
           <CustomerSignInPage
             signingIn={signingIn}
             authError={authError}
-            onSignIn={(vehicle) => void handleSignInForRole('motorist', vehicle)}
+            onSignIn={(vehicle, draft) => void handleSignInForRole('motorist', vehicle, draft)}
             onSwitchToMechanic={() => navigateAuthView('mechanic_signin')}
             onBackToOverview={() => navigateAuthView('landing')}
           />
@@ -472,7 +564,7 @@ export default function App() {
           <MechanicSignInPage
             signingIn={signingIn}
             authError={authError}
-            onSignIn={() => void handleSignInForRole('mechanic')}
+            onSignIn={(draft) => void handleSignInForRole('mechanic', undefined, draft)}
             onSwitchToCustomer={() => navigateAuthView('customer_signin')}
             onBackToOverview={() => navigateAuthView('landing')}
           />
@@ -484,13 +576,13 @@ export default function App() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
                 <div className="lg:col-span-6 flex flex-col justify-center space-y-6">
                   <div className="text-xs font-semibold text-orange-700">
-                    Android PWA · Direct Roadside Bidding
+                    Global Roadside Bidding · ID-Verified Dispatch
                   </div>
                   <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 leading-[1.1] text-balance">
-                    Set your repair price. Hire a mechanic in minutes.
+                    Set your repair price. Hire a verified mechanic team.
                   </h1>
                   <p className="text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl">
-                    Stranded with a flat tire, dead battery, or engine stall? Name what you are willing to pay, compare live mechanic bids, and pay directly by scanning the mechanic&apos;s personal QR code.
+                    Stranded anywhere in the world? Post your offer, share whether you are paying by Cash, Card, Mobile Money, UPI, Pix, or local bank transfer, and get matched with ID-checked mechanic companies of 3+ technicians.
                   </p>
 
                   <div className="flex flex-wrap items-center gap-3">
@@ -509,17 +601,17 @@ export default function App() {
                       className="min-h-[50px] px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold inline-flex items-center gap-2 transition-colors whitespace-nowrap"
                     >
                       <Wrench className="w-4 h-4 text-orange-400" />
-                      Mechanic Sign In
+                      Mechanic Company Sign In
                     </button>
                     <PWAInstallButton />
                   </div>
 
                   <div className="pt-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-500">
-                    <span>Driver-set pricing</span>
+                    <span>Original ID / Passport verified</span>
                     <span aria-hidden="true">·</span>
-                    <span>Mechanic QR code payments</span>
+                    <span>Country-adapted global payments</span>
                     <span aria-hidden="true">·</span>
-                    <span>7-day free trial, then $4/mo for mechanics</span>
+                    <span>3+ mechanic companies</span>
                   </div>
                 </div>
 
@@ -535,14 +627,14 @@ export default function App() {
                     <div className="absolute bottom-5 left-5 right-5 text-white flex flex-wrap items-end justify-between gap-4">
                       <div>
                         <div className="text-xs text-orange-300 font-semibold">
-                          Live Roadside Dispatch
+                          Live Global Roadside Dispatch
                         </div>
                         <div className="font-display text-lg font-semibold mt-0.5">
-                          Negotiate directly. Zero dispatch middleman.
+                          Vetted 3+ technician companies. Local payments in every country.
                         </div>
                       </div>
                       <div className="text-right tabular-nums">
-                        <div className="text-xs text-slate-300">Mechanic Plan</div>
+                        <div className="text-xs text-slate-300">Company Plan</div>
                         <div className="font-display text-lg font-bold">$4.00 / mo after 7d</div>
                       </div>
                     </div>
@@ -555,59 +647,59 @@ export default function App() {
             <section id="how-it-works" className="max-w-7xl mx-auto px-4 sm:px-6">
               <div className="mb-8">
                 <h2 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
-                  How Roadside Bidding Works
+                  How Verified Roadside Bidding Works
                 </h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  Built on real-time offer negotiation instead of inflated towing rates.
+                  Built on real-time offer negotiation, background-checked participants, and country-aware local payments.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-2">
-                  <div className="text-xs font-semibold text-orange-700">01. Post Your Offer</div>
+                  <div className="text-xs font-semibold text-orange-700">01. Verify &amp; Post Offer</div>
                   <h3 className="font-display text-lg font-semibold text-slate-900">
-                    Pin breakdown &amp; set price
+                    Upload ID, pin GPS &amp; payment
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    Select tire, battery, lockout, engine, or tow assistance, tap your GPS pin, and enter what you want to pay.
+                    Upload a photo of your original ID or Passport, pin your location, and share how you will pay based on your country (Cash, Card, Mobile Money, UPI, Pix, Bank, or Wallet).
                   </p>
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-2">
-                  <div className="text-xs font-semibold text-orange-700">02. Pick a Mechanic</div>
+                  <div className="text-xs font-semibold text-orange-700">02. Pick a Mechanic Company</div>
                   <h3 className="font-display text-lg font-semibold text-slate-900">
-                    Compare bids &amp; ETAs
+                    Compare 3+ crew teams &amp; bids
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    Nearby mechanics accept your offer or send a counter-bid with their arrival time. You choose who dispatches.
+                    Registered companies of 3 or more verified mechanics accept your offer or send a counter-bid with live ETA.
                   </p>
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-2">
-                  <div className="text-xs font-semibold text-orange-700">03. Scan QR &amp; Pay</div>
+                  <div className="text-xs font-semibold text-orange-700">03. Settle Directly</div>
                   <h3 className="font-display text-lg font-semibold text-slate-900">
-                    Direct mechanic QR code
+                    Pay in your local method
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    When your car is running again, scan the mechanic&apos;s personal payment QR code to settle directly.
+                    Once repaired, settle directly with the mechanic team via your chosen cash, card, mobile money, or regional QR rail, then leave a 1–5 star rating.
                   </p>
                 </div>
               </div>
             </section>
 
-            {/* Featured Mechanics */}
+            {/* Featured Mechanic Companies */}
             <section id="mechanics" className="max-w-7xl mx-auto px-4 sm:px-6">
               <div className="mb-8">
                 <h2 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
-                  Mobile Mechanics Ready to Bid
+                  Mechanic Companies Ready to Bid
                 </h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  Every technician carries a verified QR payment profile for instant roadside settlement.
+                  Every workshop joins as a group of 3 or more technicians with background checks and direct local payout support.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {FEATURED_MECHANICS.map((m) => (
+                {FEATURED_MECHANIC_COMPANIES.map((m) => (
                   <div
                     key={m.name}
                     className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4"
@@ -643,29 +735,29 @@ export default function App() {
               >
                 <div className="lg:col-span-7 space-y-4">
                   <div className="text-xs font-semibold text-orange-400">
-                    For Mobile Mechanics &amp; Workshops
+                    For Mechanic Companies ({MIN_MECHANIC_TEAM_SIZE}+ Technicians)
                   </div>
                   <h2 className="font-display text-2xl sm:text-3xl font-bold text-balance">
                     7 Days Free, Then Just $4.00/Month
                   </h2>
                   <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-2xl">
-                    Keep 100% of every roadside repair you win. Track your 7-day trial status and manage $4/month subscription payments and receipts right inside your mechanic profile.
+                    Register your workshop team of 3+ mechanics, complete original ID verification, and keep 100% of every roadside repair across global local payment rails.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
                     <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
-                      <CalendarClock className="w-5 h-5 text-orange-400 mb-2" />
+                      <Users className="w-5 h-5 text-orange-400 mb-2" />
+                      <div className="font-display text-lg font-bold tabular-nums">3+ Crew</div>
+                      <div className="text-xs text-slate-400 mt-0.5">Verified company group</div>
+                    </div>
+                    <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
+                      <CalendarClock className="w-5 h-5 text-sky-400 mb-2" />
                       <div className="font-display text-lg font-bold tabular-nums">7 Days Free</div>
-                      <div className="text-xs text-slate-400 mt-0.5">Live trial countdown</div>
+                      <div className="text-xs text-slate-400 mt-0.5">Then $4.00/mo flat</div>
                     </div>
                     <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
                       <QrCode className="w-5 h-5 text-emerald-400 mb-2" />
-                      <div className="font-display text-lg font-bold">Personal QR</div>
-                      <div className="text-xs text-slate-400 mt-0.5">Instant direct payouts</div>
-                    </div>
-                    <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
-                      <ShieldCheck className="w-5 h-5 text-sky-400 mb-2" />
-                      <div className="font-display text-lg font-bold tabular-nums">$4.00 / mo</div>
-                      <div className="text-xs text-slate-400 mt-0.5">Built-in billing &amp; receipts</div>
+                      <div className="font-display text-lg font-bold">Global Rails</div>
+                      <div className="text-xs text-slate-400 mt-0.5">Tailored by country</div>
                     </div>
                   </div>
                 </div>
@@ -676,7 +768,7 @@ export default function App() {
                     Choose your WrenchBid sign-in page
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    Customers sign in to post breakdown offers and rate repairs. Mechanics sign in to start their 7-day free trial, bid on jobs, and manage $4/month billing.
+                    Both customers and mechanic companies upload an original ID or Passport for verification and background checks when joining.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <button
@@ -691,7 +783,7 @@ export default function App() {
                       onClick={() => navigateAuthView('mechanic_signin')}
                       className="min-h-[46px] px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold transition-colors"
                     >
-                      Mechanic Sign In
+                      Mechanic Company Sign In
                     </button>
                   </div>
                 </div>
@@ -725,7 +817,7 @@ export default function App() {
             }`}
           >
             <Wrench className="w-5 h-5" />
-            <span>Mechanic &amp; Billing</span>
+            <span>Company &amp; Billing</span>
           </button>
         </nav>
       )}

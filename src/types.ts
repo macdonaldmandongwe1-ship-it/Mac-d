@@ -14,6 +14,151 @@ export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 export type SubscriptionStatus = 'trial' | 'active' | 'expired';
 export type PaymentMethod = 'qr_pay' | 'card';
 
+export type CustomerPaymentMethod =
+  | 'cash'
+  | 'mobile_money'
+  | 'card'
+  | 'bank_transfer'
+  | 'upi'
+  | 'pix'
+  | 'digital_wallet'
+  | 'crypto';
+
+export type IdentityDocumentType = 'national_id' | 'passport';
+export type IdentityVerificationStatus = 'unverified' | 'pending_review' | 'verified' | 'rejected';
+
+export const ADMIN_EMAIL = 'godfreedonald57@gmail.com';
+export const MIN_MECHANIC_TEAM_SIZE = 3;
+
+export const CUSTOMER_PAYMENT_METHODS: {
+  id: CustomerPaymentMethod;
+  label: string;
+  region: string;
+  examples: string;
+  usesQrSettlement: boolean;
+}[] = [
+  {
+    id: 'cash',
+    label: 'Cash',
+    region: 'Global',
+    examples: 'Direct cash on site',
+    usesQrSettlement: false,
+  },
+  {
+    id: 'mobile_money',
+    label: 'Mobile Money',
+    region: 'Africa & Emerging',
+    examples: 'M-Pesa · MTN MoMo · Airtel · Wave',
+    usesQrSettlement: true,
+  },
+  {
+    id: 'card',
+    label: 'Card',
+    region: 'Global',
+    examples: 'Visa · Mastercard · Amex · UnionPay',
+    usesQrSettlement: true,
+  },
+  {
+    id: 'bank_transfer',
+    label: 'Bank Transfer',
+    region: 'Global',
+    examples: 'SEPA · ACH · Faster Payments · SPEI',
+    usesQrSettlement: false,
+  },
+  {
+    id: 'upi',
+    label: 'UPI',
+    region: 'India & South Asia',
+    examples: 'Google Pay · PhonePe · Paytm · BHIM',
+    usesQrSettlement: true,
+  },
+  {
+    id: 'pix',
+    label: 'Pix',
+    region: 'Brazil & LatAm',
+    examples: 'Instant Pix QR / Chave Pix',
+    usesQrSettlement: true,
+  },
+  {
+    id: 'digital_wallet',
+    label: 'Digital Wallet',
+    region: 'Global & APAC',
+    examples: 'PayPal · Alipay · WeChat · GrabPay · GCash',
+    usesQrSettlement: true,
+  },
+  {
+    id: 'crypto',
+    label: 'Crypto',
+    region: 'Global',
+    examples: 'USDC · USDT · Bitcoin Lightning',
+    usesQrSettlement: true,
+  },
+];
+
+export const GLOBAL_SUBSCRIPTION_RAILS: {
+  id: string;
+  method: PaymentMethod;
+  label: string;
+  region: string;
+  hint: string;
+}[] = [
+  {
+    id: 'Global Card',
+    method: 'card',
+    label: 'Card (Visa / Mastercard / Amex / UnionPay)',
+    region: 'Global',
+    hint: `Settles $${4}.00 USD to ${'4638330011712851'}`,
+  },
+  {
+    id: 'Mobile Money QR',
+    method: 'qr_pay',
+    label: 'Mobile Money QR (M-Pesa / MTN MoMo / Airtel)',
+    region: 'Africa & Emerging',
+    hint: `Instant mobile wallet QR to ${'4638330011712851'}`,
+  },
+  {
+    id: 'UPI QR',
+    method: 'qr_pay',
+    label: 'UPI QR (GPay / PhonePe / Paytm)',
+    region: 'India & South Asia',
+    hint: `Instant UPI QR checkout to ${'4638330011712851'}`,
+  },
+  {
+    id: 'Pix QR',
+    method: 'qr_pay',
+    label: 'Pix Instant QR',
+    region: 'Brazil & LatAm',
+    hint: `Instant Pix QR checkout to ${'4638330011712851'}`,
+  },
+  {
+    id: 'Global Wallet QR',
+    method: 'qr_pay',
+    label: 'Digital Wallet (PayPal / Alipay / GrabPay / GCash)',
+    region: 'Global & APAC',
+    hint: `Scan QR in wallet app to pay ${'4638330011712851'}`,
+  },
+  {
+    id: 'SEPA / Bank QR',
+    method: 'qr_pay',
+    label: 'Instant Bank QR (SEPA / Faster Payments / SPEI)',
+    region: 'Europe, UK & Americas',
+    hint: `Instant bank QR transfer to ${'4638330011712851'}`,
+  },
+];
+
+export function formatCustomerPaymentMethod(method?: CustomerPaymentMethod): string {
+  const found = CUSTOMER_PAYMENT_METHODS.find((m) => m.id === method);
+  if (found) return found.label;
+  return 'Mobile Money';
+}
+
+export function getCustomerPaymentMethodMeta(method?: CustomerPaymentMethod) {
+  return (
+    CUSTOMER_PAYMENT_METHODS.find((m) => m.id === method) ||
+    CUSTOMER_PAYMENT_METHODS.find((m) => m.id === 'mobile_money')!
+  );
+}
+
 export const TRIAL_DAYS = 7;
 export const TRIAL_DURATION_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000;
 export const MONTHLY_FEE_USD = 4;
@@ -25,6 +170,8 @@ export const LIMITS = {
   displayNameMax: 80,
   mechanicNameMin: 2,
   mechanicNameMax: 80,
+  teamMemberNameMin: 2,
+  teamMemberNameMax: 80,
   specialtyMin: 2,
   specialtyMax: 80,
   vehicleMin: 2,
@@ -42,7 +189,16 @@ export const LIMITS = {
   qrUriMax: 240,
   qrLabelMin: 2,
   qrLabelMax: 80,
+  paymentDetailNoteMax: 80,
   ratingCommentMax: 280,
+  legalFullNameMin: 2,
+  legalFullNameMax: 100,
+  issuingCountryMin: 2,
+  issuingCountryMax: 80,
+  docLast4Min: 2,
+  docLast4Max: 16,
+  docImageMaxChars: 450000,
+  reviewNoteMax: 240,
 } as const;
 
 export const RATING_LABELS: Record<number, string> = {
@@ -77,13 +233,34 @@ export interface UserProfile {
   phone?: string;
   role: UserRole;
   vehicleSummary?: string;
+  identityVerificationStatus?: IdentityVerificationStatus;
   createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface IdentityVerification {
+  uid: string;
+  role: UserRole;
+  legalFullName: string;
+  documentType: IdentityDocumentType;
+  issuingCountry: string;
+  documentNumberLast4: string;
+  documentImageDataUrl: string;
+  originalDocumentConfirmed: boolean;
+  backgroundCheckConsent: boolean;
+  status: Exclude<IdentityVerificationStatus, 'unverified'>;
+  reviewNote?: string;
+  reviewedBy?: string;
+  submittedAt: Timestamp;
+  reviewedAt?: Timestamp;
   updatedAt: Timestamp;
 }
 
 export interface MechanicProfile {
   uid: string;
   displayName: string;
+  teamMemberCount?: number;
+  teamMemberNames?: string[];
   specialty: string;
   avatarUrl?: string;
   rating: number;
@@ -93,6 +270,9 @@ export interface MechanicProfile {
   isOnline: boolean;
   qrPaymentUri: string;
   qrPaymentLabel: string;
+  acceptedPaymentMethods?: CustomerPaymentMethod[];
+  countryCode?: string;
+  identityVerificationStatus?: IdentityVerificationStatus;
   trialStartedAt: Timestamp;
   trialEndsAtMs: number;
   subscriptionStatus: SubscriptionStatus;
@@ -118,6 +298,9 @@ export interface BreakdownRequest {
   lat: number;
   lng: number;
   offerPriceUsd: number;
+  paymentMethod?: CustomerPaymentMethod;
+  countryCode?: string;
+  paymentDetailNote?: string;
   status: RequestStatus;
   acceptedBidId?: string;
   acceptedMechanicId?: string;
@@ -154,6 +337,7 @@ export interface SubscriptionPayment {
   amountUsd: number;
   billingMonths: number;
   method: PaymentMethod;
+  paymentRail?: string;
   validUntilMs: number;
   recipientAccount?: string;
   paidAt: Timestamp;

@@ -34,6 +34,10 @@
           "type": "string",
           "maxLength": 80
         },
+        "identityVerificationStatus": {
+          "type": "string",
+          "enum": ["unverified", "pending_review", "verified", "rejected"]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time"
@@ -47,7 +51,7 @@
     },
     "MechanicProfile": {
       "title": "MechanicProfile",
-      "description": "Public mechanic dispatch profile with QR payment details, 7-day trial window, and $4/month subscription state.",
+      "description": "Public mechanic dispatch profile with QR payment details, accepted global payment rails, 7-day trial window, and $4/month subscription state.",
       "type": "object",
       "properties": {
         "uid": {
@@ -60,6 +64,13 @@
           "type": "string",
           "minLength": 2,
           "maxLength": 80
+        },
+        "teamMemberCount": {
+          "type": "integer"
+        },
+        "teamMemberNames": {
+          "type": "array",
+          "description": "Company mechanic roster (minimum 3 mechanics required to join)."
         },
         "specialty": {
           "type": "string",
@@ -94,6 +105,19 @@
           "type": "string",
           "minLength": 2,
           "maxLength": 80
+        },
+        "acceptedPaymentMethods": {
+          "type": "array",
+          "description": "Up to 8 global payment methods accepted by the mechanic."
+        },
+        "countryCode": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10
+        },
+        "identityVerificationStatus": {
+          "type": "string",
+          "enum": ["unverified", "pending_review", "verified", "rejected"]
         },
         "trialStartedAt": {
           "type": "string",
@@ -163,7 +187,7 @@
     },
     "BreakdownRequest": {
       "title": "BreakdownRequest",
-      "description": "Motorist roadside assistance request with driver-set price offer and dispatch lifecycle.",
+      "description": "Motorist roadside assistance request with driver-set price offer, global payment method, and dispatch lifecycle.",
       "type": "object",
       "properties": {
         "id": {
@@ -210,6 +234,19 @@
         },
         "offerPriceUsd": {
           "type": "number"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["cash", "mobile_money", "card", "bank_transfer", "upi", "pix", "digital_wallet", "crypto"]
+        },
+        "countryCode": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 10
+        },
+        "paymentDetailNote": {
+          "type": "string",
+          "maxLength": 80
         },
         "status": {
           "type": "string",
@@ -393,6 +430,10 @@
           "type": "string",
           "enum": ["qr_pay", "card"]
         },
+        "paymentRail": {
+          "type": "string",
+          "maxLength": 40
+        },
         "validUntilMs": {
           "type": "integer"
         },
@@ -476,6 +517,91 @@
         "stars",
         "createdAt"
       ]
+    },
+    "IdentityVerification": {
+      "title": "IdentityVerification",
+      "description": "Strictly private PII verification and background check submission containing original National ID or Passport image.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["motorist", "mechanic"]
+        },
+        "legalFullName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "documentType": {
+          "type": "string",
+          "enum": ["national_id", "passport"]
+        },
+        "issuingCountry": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "documentNumberLast4": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 16
+        },
+        "documentImageDataUrl": {
+          "type": "string",
+          "minLength": 100,
+          "maxLength": 450000
+        },
+        "originalDocumentConfirmed": {
+          "type": "boolean"
+        },
+        "backgroundCheckConsent": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending_review", "verified", "rejected"]
+        },
+        "reviewNote": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "reviewedBy": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "submittedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reviewedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "role",
+        "legalFullName",
+        "documentType",
+        "issuingCountry",
+        "documentNumberLast4",
+        "documentImageDataUrl",
+        "originalDocumentConfirmed",
+        "backgroundCheckConsent",
+        "status",
+        "submittedAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -483,9 +609,13 @@
       "schema": "UserProfile",
       "description": "Private PII user profiles strictly scoped to owner."
     },
+    "/identityVerifications/{userId}": {
+      "schema": "IdentityVerification",
+      "description": "Strictly isolated original ID or Passport verification records for background checks (owner + verified admin only)."
+    },
     "/mechanics/{mechanicId}": {
       "schema": "MechanicProfile",
-      "description": "Mechanic dispatch profile, QR payment setup, 7-day trial state, $4/month billing state, and aggregate rating."
+      "description": "Mechanic company dispatch profile (3+ technicians), accepted global payment methods, QR payment setup, 7-day trial state, $4/month billing state, and aggregate rating."
     },
     "/requests/{requestId}": {
       "schema": "BreakdownRequest",

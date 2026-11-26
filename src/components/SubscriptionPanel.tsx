@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Copy,
   CreditCard,
+  Globe,
   Landmark,
   QrCode,
   Receipt,
@@ -24,9 +25,16 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
+import {
+  COUNTRY_PAYMENT_PROFILES,
+  detectDefaultCountryCode,
+  formatLocalCurrencyApprox,
+  getCountryPaymentProfile,
+} from '../data/countryPayments';
 import { OperationType, db, handleFirestoreError } from '../firebase';
 import {
   BILLING_CYCLE_MS,
+  GLOBAL_SUBSCRIPTION_RAILS,
   MONTHLY_FEE_USD,
   MechanicProfile,
   PLATFORM_PAYOUT_ACCOUNT,
@@ -40,6 +48,7 @@ import {
 
 interface SubscriptionPanelProps {
   mechanic: MechanicProfile;
+  defaultCountryCode?: string;
 }
 
 function formatDate(ms: number): string {
@@ -60,11 +69,17 @@ function formatDateTime(ms: number): string {
   });
 }
 
-export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
+export function SubscriptionPanel({ mechanic, defaultCountryCode }: SubscriptionPanelProps) {
   const [payments, setPayments] = useState<SubscriptionPayment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [countryCode, setCountryCode] = useState<string>(
+    defaultCountryCode || mechanic.countryCode || detectDefaultCountryCode()
+  );
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(
     mechanic.preferredBillingMethod || 'card'
+  );
+  const [selectedRailId, setSelectedRailId] = useState<string>(
+    mechanic.preferredBillingMethod === 'qr_pay' ? 'Mobile Money QR' : 'Global Card'
   );
   const [autoRenew, setAutoRenew] = useState<boolean>(mechanic.autoRenew ?? true);
   const [savingAutoRenew, setSavingAutoRenew] = useState(false);
@@ -80,9 +95,20 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
   }, []);
 
   useEffect(() => {
-    setSelectedMethod(mechanic.preferredBillingMethod || 'card');
+    const method = mechanic.preferredBillingMethod || 'card';
+    setSelectedMethod(method);
+    setSelectedRailId((prev) => {
+      const current = GLOBAL_SUBSCRIPTION_RAILS.find((r) => r.id === prev);
+      if (current && current.method === method) return prev;
+      return method === 'qr_pay' ? 'Mobile Money QR' : 'Global Card';
+    });
     setAutoRenew(mechanic.autoRenew ?? true);
   }, [mechanic.preferredBillingMethod, mechanic.autoRenew]);
+
+  useEffect(() => {
+    const nextCode = defaultCountryCode || mechanic.countryCode;
+    if (nextCode) setCountryCode(nextCode);
+  }, [defaultCountryCode, mechanic.countryCode]);
 
   // Listen to mechanic's $4/month subscription payment ledger
   useEffect(() => {
@@ -146,9 +172,17 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
   const nextCoverageEndMs =
     Math.max(nowMs, mechanic.trialEndsAtMs, mechanic.subscriptionPaidUntilMs) + BILLING_CYCLE_MS;
 
+  const countryProfile = getCountryPaymentProfile(countryCode);
+  const localFeeText = formatLocalCurrencyApprox(MONTHLY_FEE_USD, countryProfile);
+  const selectedRail =
+    GLOBAL_SUBSCRIPTION_RAILS.find((r) => r.id === selectedRailId) ||
+    GLOBAL_SUBSCRIPTION_RAILS[0];
+
   const subscriptionQrPayload = `wrenchbid://subscribe?mechanic=${encodeURIComponent(
     mechanic.uid
-  )}&account=${PLATFORM_PAYOUT_ACCOUNT}&plan=monthly&amount=${MONTHLY_FEE_USD}.00`;
+  )}&account=${PLATFORM_PAYOUT_ACCOUNT}&plan=monthly&amount=${MONTHLY_FEE_USD}.00&country=${encodeURIComponent(
+    countryProfile.code
+  )}&rail=${encodeURIComponent(selectedRail.id)}`;
 
   const handleCopyAccount = async () => {
     try {
@@ -179,7 +213,8 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
     }
   };
 
-  const handleSelectMethod = async (method: PaymentMethod) => {
+  const handleSelectRail = async (railId: string, method: PaymentMethod) => {
+    setSelectedRailId(railId);
     setSelectedMethod(method);
     try {
       await updateDoc(doc(db, 'mechanics', mechanic.uid), {
@@ -208,7 +243,8 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
         mechanicId: mechanic.uid,
         amountUsd: MONTHLY_FEE_USD,
         billingMonths: 1,
-        method: selectedMethod,
+        method: selectedRail.method,
+        paymentRail: selectedRail.id,
         validUntilMs,
         recipientAccount: PLATFORM_PAYOUT_ACCOUNT,
         paidAt: serverTimestamp(),
@@ -217,13 +253,13 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
         subscriptionStatus: 'active',
         subscriptionPaidUntilMs: validUntilMs,
         lastPaymentId: paymentId,
-        preferredBillingMethod: selectedMethod,
+        preferredBillingMethod: selectedRail.method,
         updatedAt: serverTimestamp(),
       });
       await batch.commit();
 
       setPaymentNotice(
-        `Payment recorded ($${MONTHLY_FEE_USD.toFixed(2)} to account ${PLATFORM_PAYOUT_ACCOUNT}). Dispatch coverage active through ${formatDate(validUntilMs)}.`
+        `Payment recorded ($${MONTHLY_FEE_USD.toFixed(2)} USD via ${selectedRail.id} to account ${PLATFORM_PAYOUT_ACCOUNT}). Dispatch coverage active through ${formatDate(validUntilMs)}.`
       );
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `subscriptionPayments/${paymentId}`);
@@ -294,8 +330,10 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
             <div className="font-display text-lg font-bold text-slate-900 tabular-nums">
               ${MONTHLY_FEE_USD.toFixed(2)} / month
             </div>
-            <div className="text-xs text-slate-600">
-              0% commission on customer QR payouts
+            <div className="text-xs text-slate-600 tabular-nums">
+              {countryProfile.currencyCode !== 'USD'
+                ? `${localFeeText} · 0% job commission`
+                : '0% commission on customer job payouts'}
             </div>
           </div>
 
@@ -405,50 +443,63 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
           </button>
         </div>
 
-        {/* Method Selection */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => void handleSelectMethod('card')}
-            className={`min-h-[56px] p-4 rounded-xl border text-left flex items-center gap-3 transition-colors ${
-              selectedMethod === 'card'
-                ? 'border-orange-600 bg-orange-50/60 text-slate-900'
-                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
-            }`}
-          >
-            <CreditCard
-              className={`w-5 h-5 shrink-0 ${
-                selectedMethod === 'card' ? 'text-orange-600' : 'text-slate-400'
-              }`}
-            />
-            <div>
-              <div className="text-sm font-semibold">Debit / Credit Card</div>
-              <div className="text-xs text-slate-500">Settles $4.00 to {PLATFORM_PAYOUT_ACCOUNT}</div>
+        {/* Country Billing Preview Selector */}
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <Globe className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-slate-700 leading-relaxed">
+              <div className="font-semibold text-slate-900">
+                Country Settlement Preview: {countryProfile.name} ({localFeeText})
+              </div>
+              <div className="text-[11px] text-slate-500">{countryProfile.localNoteBanner}</div>
             </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void handleSelectMethod('qr_pay')}
-            className={`min-h-[56px] p-4 rounded-xl border text-left flex items-center gap-3 transition-colors ${
-              selectedMethod === 'qr_pay'
-                ? 'border-orange-600 bg-orange-50/60 text-slate-900'
-                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
-            }`}
+          </div>
+          <select
+            aria-label="Billing preview country"
+            value={countryCode}
+            onChange={(e) => setCountryCode(e.target.value)}
+            className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-900 shrink-0"
           >
-            <QrCode
-              className={`w-5 h-5 shrink-0 ${
-                selectedMethod === 'qr_pay' ? 'text-orange-600' : 'text-slate-400'
-              }`}
-            />
-            <div>
-              <div className="text-sm font-semibold">Subscription QR Pay</div>
-              <div className="text-xs text-slate-500">Scan QR to pay {PLATFORM_PAYOUT_ACCOUNT}</div>
-            </div>
-          </button>
+            {COUNTRY_PAYMENT_PROFILES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name} ({c.currencyCode})
+              </option>
+            ))}
+          </select>
         </div>
 
-        {selectedMethod === 'qr_pay' && (
+        {/* Global Payment Rails Selection */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {GLOBAL_SUBSCRIPTION_RAILS.map((rail) => {
+            const isSelected = selectedRail.id === rail.id;
+            const Icon = rail.method === 'card' ? CreditCard : QrCode;
+            return (
+              <button
+                key={rail.id}
+                type="button"
+                onClick={() => void handleSelectRail(rail.id, rail.method)}
+                className={`min-h-[60px] p-3.5 rounded-xl border text-left flex items-start gap-3 transition-colors ${
+                  isSelected
+                    ? 'border-orange-600 bg-orange-50/60 text-slate-900'
+                    : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                }`}
+              >
+                <Icon
+                  className={`w-5 h-5 shrink-0 mt-0.5 ${
+                    isSelected ? 'text-orange-600' : 'text-slate-400'
+                  }`}
+                />
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900">{rail.id}</div>
+                  <div className="text-[11px] text-slate-600 leading-snug">{rail.label}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">{rail.region}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {selectedRail.method === 'qr_pay' && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center gap-5">
             <div className="p-2.5 bg-white border border-slate-200 rounded-xl shrink-0">
               <QRCodeSVG
@@ -461,10 +512,11 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
             </div>
             <div className="space-y-1 text-center sm:text-left">
               <div className="text-xs font-semibold text-slate-900">
-                WrenchBid Mechanic Plan QR Checkout
+                {selectedRail.id} Checkout ({countryProfile.name})
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Scan this QR code in your payment app to send <strong>$4.00 USD</strong> to account{' '}
+                Scan this QR code in your payment app ({selectedRail.label}) to send{' '}
+                <strong>{localFeeText}</strong> to account{' '}
                 <strong className="font-mono">{PLATFORM_PAYOUT_ACCOUNT}</strong> for 30 days of unlimited roadside bidding, then tap Confirm Payment below.
               </p>
               <div className="text-[11px] font-mono text-slate-500 break-all">
@@ -552,7 +604,7 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
                         {formatDate(paidMs)}
                       </td>
                       <td className="px-5 py-3.5 text-slate-700 whitespace-nowrap">
-                        {p.method === 'qr_pay' ? 'QR Pay' : 'Card'}
+                        {p.paymentRail || (p.method === 'qr_pay' ? 'QR Pay' : 'Card')}
                       </td>
                       <td className="px-5 py-3.5 text-slate-700 tabular-nums whitespace-nowrap">
                         {formatDate(p.validUntilMs)}
@@ -619,7 +671,10 @@ export function SubscriptionPanel({ mechanic }: SubscriptionPanelProps) {
               <div className="py-2.5 flex justify-between gap-4">
                 <dt className="text-slate-500">Payment Method</dt>
                 <dd className="font-medium text-slate-900">
-                  {selectedReceipt.method === 'qr_pay' ? 'Subscription QR Pay' : 'Debit / Credit Card'}
+                  {selectedReceipt.paymentRail ||
+                    (selectedReceipt.method === 'qr_pay'
+                      ? 'Subscription QR Pay'
+                      : 'Debit / Credit Card')}
                 </dd>
               </div>
               <div className="py-2.5 flex justify-between gap-4">

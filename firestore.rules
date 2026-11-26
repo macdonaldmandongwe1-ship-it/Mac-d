@@ -32,18 +32,66 @@ service cloud.firestore {
       return isVerifiedUser() && request.auth.uid == uid;
     }
 
+    function isAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'godfreedonald57@gmail.com';
+    }
+
+    function isGlobalPaymentMethod(m) {
+      return m in ['cash', 'mobile_money', 'card', 'bank_transfer', 'upi', 'pix', 'digital_wallet', 'crypto'];
+    }
+
     // --- Validation Blueprints ---
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['uid', 'displayName', 'email', 'phone', 'role', 'vehicleSummary', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'email', 'phone', 'role', 'vehicleSummary',
+          'identityVerificationStatus', 'createdAt', 'updatedAt'
+        ])
         && isValidId(data.uid)
-        && data.uid == request.auth.uid
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
         && data.role in ['motorist', 'mechanic']
         && (!('phone' in data) || (data.phone is string && data.phone.size() <= 32))
         && (!('vehicleSummary' in data) || (data.vehicleSummary is string && data.vehicleSummary.size() <= 80))
+        && (!('identityVerificationStatus' in data) || data.identityVerificationStatus in ['unverified', 'pending_review', 'verified', 'rejected'])
         && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidIdentityVerification(data) {
+      return data.keys().hasAll([
+          'uid', 'role', 'legalFullName', 'documentType', 'issuingCountry',
+          'documentNumberLast4', 'documentImageDataUrl',
+          'originalDocumentConfirmed', 'backgroundCheckConsent',
+          'status', 'submittedAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'role', 'legalFullName', 'documentType', 'issuingCountry',
+          'documentNumberLast4', 'documentImageDataUrl',
+          'originalDocumentConfirmed', 'backgroundCheckConsent',
+          'status', 'reviewNote', 'reviewedBy', 'submittedAt', 'reviewedAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.role in ['motorist', 'mechanic']
+        && data.legalFullName is string && data.legalFullName.size() >= 2 && data.legalFullName.size() <= 100
+        && data.documentType in ['national_id', 'passport']
+        && data.issuingCountry is string && data.issuingCountry.size() >= 2 && data.issuingCountry.size() <= 80
+        && data.documentNumberLast4 is string && data.documentNumberLast4.size() >= 2 && data.documentNumberLast4.size() <= 16
+        && data.documentImageDataUrl is string
+        && data.documentImageDataUrl.size() >= 100
+        && data.documentImageDataUrl.size() <= 450000
+        && (
+          data.documentImageDataUrl[0:23] == 'data:image/jpeg;base64,'
+          || data.documentImageDataUrl[0:22] == 'data:image/png;base64,'
+          || data.documentImageDataUrl[0:23] == 'data:image/webp;base64,'
+        )
+        && data.originalDocumentConfirmed == true
+        && data.backgroundCheckConsent == true
+        && data.status in ['pending_review', 'verified', 'rejected']
+        && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 240))
+        && (!('reviewedBy' in data) || (data.reviewedBy is string && data.reviewedBy.size() <= 160))
+        && data.submittedAt is timestamp
+        && (!('reviewedAt' in data) || data.reviewedAt is timestamp)
         && data.updatedAt is timestamp;
     }
 
@@ -55,8 +103,10 @@ service cloud.firestore {
           'subscriptionPaidUntilMs', 'monthlyFeeUsd', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'uid', 'displayName', 'specialty', 'avatarUrl', 'rating', 'completedJobs',
+          'uid', 'displayName', 'companyRegistrationId', 'teamMemberCount', 'teamMemberNames',
+          'specialty', 'avatarUrl', 'rating', 'completedJobs',
           'lat', 'lng', 'isOnline', 'qrPaymentUri', 'qrPaymentLabel',
+          'acceptedPaymentMethods', 'countryCode', 'identityVerificationStatus',
           'trialStartedAt', 'trialEndsAtMs', 'subscriptionStatus',
           'subscriptionPaidUntilMs', 'monthlyFeeUsd', 'autoRenew',
           'preferredBillingMethod', 'lastPaymentId',
@@ -64,6 +114,16 @@ service cloud.firestore {
         ])
         && isValidId(data.uid)
         && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 80
+        && (!('companyRegistrationId' in data) || (data.companyRegistrationId is string && data.companyRegistrationId.size() >= 2 && data.companyRegistrationId.size() <= 64))
+        && (!('teamMemberCount' in data) || (data.teamMemberCount is int && data.teamMemberCount >= 3 && data.teamMemberCount <= 500))
+        && (!('teamMemberNames' in data) || (
+          data.teamMemberNames is list
+          && data.teamMemberNames.size() >= 3
+          && data.teamMemberNames.size() <= 20
+          && data.teamMemberNames[0] is string
+          && data.teamMemberNames[1] is string
+          && data.teamMemberNames[2] is string
+        ))
         && data.specialty is string && data.specialty.size() >= 2 && data.specialty.size() <= 80
         && (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 300))
         && data.rating is number && data.rating >= 1 && data.rating <= 5
@@ -73,6 +133,15 @@ service cloud.firestore {
         && data.isOnline is bool
         && data.qrPaymentUri is string && data.qrPaymentUri.size() >= 4 && data.qrPaymentUri.size() <= 240
         && data.qrPaymentLabel is string && data.qrPaymentLabel.size() >= 2 && data.qrPaymentLabel.size() <= 80
+        && (!('acceptedPaymentMethods' in data) || (
+          data.acceptedPaymentMethods is list
+          && data.acceptedPaymentMethods.size() >= 1
+          && data.acceptedPaymentMethods.size() <= 8
+          && data.acceptedPaymentMethods.hasOnly(['cash', 'mobile_money', 'card', 'bank_transfer', 'upi', 'pix', 'digital_wallet', 'crypto'])
+          && data.acceptedPaymentMethods[0] is string
+        ))
+        && (!('countryCode' in data) || (data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 10))
+        && (!('identityVerificationStatus' in data) || data.identityVerificationStatus in ['unverified', 'pending_review', 'verified', 'rejected'])
         && data.trialStartedAt is timestamp
         && data.trialEndsAtMs is number && data.trialEndsAtMs > 0
         && data.subscriptionStatus in ['trial', 'active', 'expired']
@@ -96,7 +165,8 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'id', 'motoristId', 'motoristName', 'vehicleMakeModel',
           'issueCategory', 'issueNotes', 'locationLabel', 'lat', 'lng',
-          'offerPriceUsd', 'status', 'acceptedBidId', 'acceptedMechanicId',
+          'offerPriceUsd', 'paymentMethod', 'countryCode', 'paymentDetailNote',
+          'status', 'acceptedBidId', 'acceptedMechanicId',
           'acceptedMechanicName', 'agreedPriceUsd', 'qrPaymentUri',
           'qrPaymentLabel', 'paymentConfirmedAt', 'createdAt', 'updatedAt'
         ])
@@ -110,6 +180,9 @@ service cloud.firestore {
         && data.lat is number && data.lat >= -90 && data.lat <= 90
         && data.lng is number && data.lng >= -180 && data.lng <= 180
         && data.offerPriceUsd is number && data.offerPriceUsd >= 5 && data.offerPriceUsd <= 5000
+        && (!('paymentMethod' in data) || isGlobalPaymentMethod(data.paymentMethod))
+        && (!('countryCode' in data) || (data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 10))
+        && (!('paymentDetailNote' in data) || (data.paymentDetailNote is string && data.paymentDetailNote.size() <= 80))
         && data.status in ['open', 'accepted', 'arrived', 'in_progress', 'payment_pending', 'completed', 'cancelled']
         && (!('acceptedBidId' in data) || isValidId(data.acceptedBidId))
         && (!('acceptedMechanicId' in data) || isValidId(data.acceptedMechanicId))
@@ -154,13 +227,14 @@ service cloud.firestore {
 
     function isValidSubscriptionPayment(data) {
       return data.keys().hasAll(['id', 'mechanicId', 'amountUsd', 'billingMonths', 'method', 'validUntilMs', 'recipientAccount', 'paidAt'])
-        && data.keys().hasOnly(['id', 'mechanicId', 'amountUsd', 'billingMonths', 'method', 'validUntilMs', 'recipientAccount', 'paidAt'])
+        && data.keys().hasOnly(['id', 'mechanicId', 'amountUsd', 'billingMonths', 'method', 'paymentRail', 'validUntilMs', 'recipientAccount', 'paidAt'])
         && isValidId(data.id)
         && isValidId(data.mechanicId)
         && data.mechanicId == request.auth.uid
         && data.amountUsd == 4
         && data.billingMonths == 1
         && data.method in ['qr_pay', 'card']
+        && (!('paymentRail' in data) || (data.paymentRail is string && data.paymentRail.size() >= 2 && data.paymentRail.size() <= 40))
         && data.validUntilMs is number && data.validUntilMs > 0
         && data.recipientAccount == '4638330011712851'
         && data.paidAt is timestamp;
@@ -193,41 +267,122 @@ service cloud.firestore {
 
     function mechanicCanBid(mechanicId) {
       let m = get(/databases/$(database)/documents/mechanics/$(mechanicId)).data;
-      return (m.subscriptionStatus == 'trial' && m.trialEndsAtMs > request.time.toMillis())
-        || (m.subscriptionStatus == 'active' && m.subscriptionPaidUntilMs > request.time.toMillis());
+      return ((!('teamMemberCount' in m) || m.teamMemberCount >= 3))
+        && (
+          (m.subscriptionStatus == 'trial' && m.trialEndsAtMs > request.time.toMillis())
+          || (m.subscriptionStatus == 'active' && m.subscriptionPaidUntilMs > request.time.toMillis())
+        );
     }
 
     // --- Collection Rules ---
 
-    // Private PII User Profiles: strict owner-only read/write
+    // Private PII User Profiles: strict owner-only (or verified admin) read/write
     match /users/{userId} {
-      allow get: if isValidId(userId) && isOwner(userId);
-      allow list: if isVerifiedUser() && resource.data.uid == request.auth.uid;
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isValidId(userId)
         && isOwner(userId)
         && isValidUser(incoming())
+        && incoming().uid == request.auth.uid
+        && (!('identityVerificationStatus' in incoming()) || incoming().identityVerificationStatus == 'unverified')
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
       allow update: if isValidId(userId)
-        && isOwner(userId)
+        && isVerifiedUser()
         && isValidUser(incoming())
         && incoming().uid == existing().uid
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'role', 'vehicleSummary', 'updatedAt']);
+        && (
+          (
+            isOwner(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'phone', 'role', 'vehicleSummary',
+              'identityVerificationStatus', 'updatedAt'
+            ])
+            && (
+              !('identityVerificationStatus' in incoming())
+              || (('identityVerificationStatus' in existing()) && incoming().identityVerificationStatus == existing().identityVerificationStatus)
+              || (
+                incoming().identityVerificationStatus == 'pending_review'
+                && existsAfter(/databases/$(database)/documents/identityVerifications/$(userId))
+              )
+            )
+          )
+          ||
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['identityVerificationStatus', 'updatedAt'])
+            && incoming().identityVerificationStatus in ['pending_review', 'verified', 'rejected']
+          )
+        );
       allow delete: if false;
     }
 
-    // Public Mechanic Directory, QR Payment Profile, & 7-Day Trial / $4 Monthly Subscription
+    // Strictly Isolated Original ID / Passport Verification & Background Check Records
+    match /identityVerifications/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidIdentityVerification(incoming())
+        && incoming().uid == userId
+        && incoming().uid == request.auth.uid
+        && incoming().status == 'pending_review'
+        && !('reviewNote' in incoming())
+        && !('reviewedBy' in incoming())
+        && !('reviewedAt' in incoming())
+        && incoming().submittedAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isValidIdentityVerification(incoming())
+        && incoming().uid == existing().uid
+        && incoming().uid == userId
+        && incoming().submittedAt == existing().submittedAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isOwner(userId)
+            && existing().status in ['pending_review', 'rejected']
+            && incoming().status == 'pending_review'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'role', 'legalFullName', 'documentType', 'issuingCountry',
+              'documentNumberLast4', 'documentImageDataUrl',
+              'originalDocumentConfirmed', 'backgroundCheckConsent',
+              'status', 'updatedAt'
+            ])
+          )
+          ||
+          (
+            isAdmin()
+            && incoming().reviewedBy == request.auth.token.email
+            && incoming().reviewedAt == request.time
+            && incoming().status in ['pending_review', 'verified', 'rejected']
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'reviewNote', 'reviewedBy', 'reviewedAt', 'updatedAt'
+            ])
+          )
+        );
+      allow delete: if false;
+    }
+
+    // Public Mechanic Company Directory (3+ mechanics), Accepted Global Payments, & 7-Day Trial / $4 Monthly Subscription
     match /mechanics/{mechanicId} {
       allow get: if isValidId(mechanicId)
         && isVerifiedUser()
         && (mechanicId == request.auth.uid || resource != null);
-      allow list: if isVerifiedUser() && (resource.data.isOnline == true || resource.data.uid == request.auth.uid);
+      allow list: if isVerifiedUser() && (resource.data.isOnline == true || resource.data.uid == request.auth.uid || isAdmin());
       allow create: if isValidId(mechanicId)
         && isOwner(mechanicId)
         && isValidMechanic(incoming())
         && incoming().uid == mechanicId
+        && incoming().teamMemberCount is int && incoming().teamMemberCount >= 3
+        && incoming().teamMemberNames is list && incoming().teamMemberNames.size() >= 3
+        && (!('identityVerificationStatus' in incoming())
+          || incoming().identityVerificationStatus == 'unverified'
+          || (incoming().identityVerificationStatus == 'pending_review' && exists(/databases/$(database)/documents/identityVerifications/$(mechanicId)))
+        )
         && (!('ratingCount' in incoming()) || incoming().ratingCount == 0)
         && (!('ratingSum' in incoming()) || incoming().ratingSum == 0)
         && incoming().trialStartedAt == request.time
@@ -247,12 +402,20 @@ service cloud.firestore {
           (
             mechanicId == request.auth.uid
             && (
-              // Action 1: Update service & QR profile, GPS, or billing preferences
+              // Action 1: Update company profile, 3+ team roster, accepted payment methods, QR profile, GPS, or billing prefs
               incoming().diff(existing()).affectedKeys().hasOnly([
-                'displayName', 'specialty', 'avatarUrl', 'lat', 'lng',
-                'isOnline', 'qrPaymentUri', 'qrPaymentLabel',
+                'displayName', 'companyRegistrationId', 'teamMemberCount', 'teamMemberNames',
+                'specialty', 'avatarUrl', 'lat', 'lng',
+                'isOnline', 'qrPaymentUri', 'qrPaymentLabel', 'acceptedPaymentMethods', 'countryCode',
                 'autoRenew', 'preferredBillingMethod', 'updatedAt'
               ])
+              ||
+              // Action 1b: Sync pending_review verification status alongside /identityVerifications submission
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly(['identityVerificationStatus', 'updatedAt'])
+                && incoming().identityVerificationStatus == 'pending_review'
+                && existsAfter(/databases/$(database)/documents/identityVerifications/$(mechanicId))
+              )
               ||
               // Action 2: Expire trial when 7-day window has elapsed
               (
@@ -280,6 +443,13 @@ service cloud.firestore {
                 && incoming().completedJobs == existing().completedJobs + 1
               )
             )
+          )
+          ||
+          // Action 4b: Verified Admin reviews mechanic company identity verification
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['identityVerificationStatus', 'updatedAt'])
+            && incoming().identityVerificationStatus in ['pending_review', 'verified', 'rejected']
           )
           ||
           // Action 5: Motorist atomically updates aggregate rating alongside immutable /ratings/{requestId} doc
@@ -315,7 +485,8 @@ service cloud.firestore {
         && incoming().keys().hasOnly([
           'id', 'motoristId', 'motoristName', 'vehicleMakeModel',
           'issueCategory', 'issueNotes', 'locationLabel', 'lat', 'lng',
-          'offerPriceUsd', 'status', 'createdAt', 'updatedAt'
+          'offerPriceUsd', 'paymentMethod', 'countryCode', 'paymentDetailNote',
+          'status', 'createdAt', 'updatedAt'
         ])
         && incoming().id == requestId
         && incoming().motoristId == request.auth.uid
@@ -339,6 +510,14 @@ service cloud.firestore {
             && existing().status == 'open'
             && incoming().status == 'open'
             && incoming().diff(existing()).affectedKeys().hasOnly(['offerPriceUsd', 'updatedAt'])
+          )
+          ||
+          // Action: Motorist shares or updates global payment method, country, & rail note
+          (
+            existing().motoristId == request.auth.uid
+            && existing().status in ['open', 'accepted', 'arrived', 'in_progress', 'payment_pending']
+            && incoming().status == existing().status
+            && incoming().diff(existing()).affectedKeys().hasOnly(['paymentMethod', 'countryCode', 'paymentDetailNote', 'updatedAt'])
           )
           ||
           // Action: Motorist cancels request
@@ -373,13 +552,21 @@ service cloud.firestore {
             )
           )
           ||
-          // Action: QR payment confirmed -> job completed
+          // Action: Assigned mechanic generates a unique job-specific payment QR code
+          (
+            existing().acceptedMechanicId == request.auth.uid
+            && existing().status in ['accepted', 'arrived', 'in_progress', 'payment_pending']
+            && incoming().status == existing().status
+            && incoming().diff(existing()).affectedKeys().hasOnly(['qrPaymentUri', 'qrPaymentLabel', 'updatedAt'])
+          )
+          ||
+          // Action: Payment confirmed (any global method) -> job completed
           (
             (existing().motoristId == request.auth.uid || existing().acceptedMechanicId == request.auth.uid)
             && existing().status == 'payment_pending'
             && incoming().status == 'completed'
             && incoming().paymentConfirmedAt == request.time
-            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentConfirmedAt', 'updatedAt'])
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentMethod', 'countryCode', 'paymentDetailNote', 'paymentConfirmedAt', 'updatedAt'])
           )
         );
       allow delete: if false;
