@@ -1,0 +1,6 @@
+{
+  "name": "WrenchBid",
+  "description": "On-demand roadside mechanic bidding app where motorists set their breakdown price, mechanics accept or counter-bid, pay via mechanic QR code, and mechanics enjoy a 7-day free trial then $4/month.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

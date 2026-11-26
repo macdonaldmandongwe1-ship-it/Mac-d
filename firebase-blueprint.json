@@ -1,0 +1,507 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private authenticated user profile storing PII and active workspace role.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "role": {
+          "type": "string",
+          "enum": ["motorist", "mechanic"]
+        },
+        "vehicleSummary": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "email", "role", "createdAt", "updatedAt"]
+    },
+    "MechanicProfile": {
+      "title": "MechanicProfile",
+      "description": "Public mechanic dispatch profile with QR payment details, 7-day trial window, and $4/month subscription state.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "specialty": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "avatarUrl": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "rating": {
+          "type": "number"
+        },
+        "completedJobs": {
+          "type": "integer"
+        },
+        "lat": {
+          "type": "number"
+        },
+        "lng": {
+          "type": "number"
+        },
+        "isOnline": {
+          "type": "boolean"
+        },
+        "qrPaymentUri": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 240
+        },
+        "qrPaymentLabel": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "trialStartedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "trialEndsAtMs": {
+          "type": "integer"
+        },
+        "subscriptionStatus": {
+          "type": "string",
+          "enum": ["trial", "active", "expired"]
+        },
+        "subscriptionPaidUntilMs": {
+          "type": "integer"
+        },
+        "monthlyFeeUsd": {
+          "type": "integer"
+        },
+        "autoRenew": {
+          "type": "boolean"
+        },
+        "preferredBillingMethod": {
+          "type": "string",
+          "enum": ["qr_pay", "card"]
+        },
+        "lastPaymentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ratingCount": {
+          "type": "integer"
+        },
+        "ratingSum": {
+          "type": "integer"
+        },
+        "lastRatingId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "specialty",
+        "rating",
+        "completedJobs",
+        "lat",
+        "lng",
+        "isOnline",
+        "qrPaymentUri",
+        "qrPaymentLabel",
+        "trialStartedAt",
+        "trialEndsAtMs",
+        "subscriptionStatus",
+        "subscriptionPaidUntilMs",
+        "monthlyFeeUsd",
+        "updatedAt"
+      ]
+    },
+    "BreakdownRequest": {
+      "title": "BreakdownRequest",
+      "description": "Motorist roadside assistance request with driver-set price offer and dispatch lifecycle.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "motoristId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "motoristName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "vehicleMakeModel": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "issueCategory": {
+          "type": "string",
+          "enum": ["tire", "battery", "engine", "tow", "lockout", "brakes"]
+        },
+        "issueNotes": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 320
+        },
+        "locationLabel": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "lat": {
+          "type": "number"
+        },
+        "lng": {
+          "type": "number"
+        },
+        "offerPriceUsd": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "accepted", "arrived", "in_progress", "payment_pending", "completed", "cancelled"]
+        },
+        "acceptedBidId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "acceptedMechanicId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "acceptedMechanicName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "agreedPriceUsd": {
+          "type": "number"
+        },
+        "qrPaymentUri": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 240
+        },
+        "qrPaymentLabel": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "paymentConfirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "motoristId",
+        "motoristName",
+        "vehicleMakeModel",
+        "issueCategory",
+        "issueNotes",
+        "locationLabel",
+        "lat",
+        "lng",
+        "offerPriceUsd",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MechanicBid": {
+      "title": "MechanicBid",
+      "description": "Mechanic acceptance or counter-bid submitted on an open breakdown request.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "motoristId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mechanicId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mechanicName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "mechanicSpecialty": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "mechanicRating": {
+          "type": "number"
+        },
+        "bidAmountUsd": {
+          "type": "number"
+        },
+        "etaMinutes": {
+          "type": "integer"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "qrPaymentUri": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 240
+        },
+        "qrPaymentLabel": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "accepted", "rejected", "withdrawn"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "requestId",
+        "motoristId",
+        "mechanicId",
+        "mechanicName",
+        "mechanicSpecialty",
+        "mechanicRating",
+        "bidAmountUsd",
+        "etaMinutes",
+        "qrPaymentUri",
+        "qrPaymentLabel",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SubscriptionPayment": {
+      "title": "SubscriptionPayment",
+      "description": "Immutable ledger entry for $4/month mechanic subscription renewals.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mechanicId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "amountUsd": {
+          "type": "integer"
+        },
+        "billingMonths": {
+          "type": "integer"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["qr_pay", "card"]
+        },
+        "validUntilMs": {
+          "type": "integer"
+        },
+        "recipientAccount": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^4638330011712851$"
+        },
+        "paidAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "mechanicId", "amountUsd", "billingMonths", "method", "validUntilMs", "recipientAccount", "paidAt"]
+    },
+    "MechanicRating": {
+      "title": "MechanicRating",
+      "description": "Immutable post-repair 1-5 star rating submitted by a motorist after a breakdown transaction is completed.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "motoristId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "motoristName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "mechanicId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "mechanicName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "vehicleMakeModel": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "stars": {
+          "type": "integer"
+        },
+        "comment": {
+          "type": "string",
+          "maxLength": 280
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "requestId",
+        "motoristId",
+        "motoristName",
+        "mechanicId",
+        "mechanicName",
+        "vehicleMakeModel",
+        "stars",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private PII user profiles strictly scoped to owner."
+    },
+    "/mechanics/{mechanicId}": {
+      "schema": "MechanicProfile",
+      "description": "Mechanic dispatch profile, QR payment setup, 7-day trial state, $4/month billing state, and aggregate rating."
+    },
+    "/requests/{requestId}": {
+      "schema": "BreakdownRequest",
+      "description": "Motorist roadside breakdown requests and dispatch lifecycle."
+    },
+    "/requests/{requestId}/bids/{bidId}": {
+      "schema": "MechanicBid",
+      "description": "Mechanic bids and counter-offers under an open breakdown request."
+    },
+    "/subscriptionPayments/{paymentId}": {
+      "schema": "SubscriptionPayment",
+      "description": "Immutable $4/month mechanic subscription billing receipts."
+    },
+    "/ratings/{ratingId}": {
+      "schema": "MechanicRating",
+      "description": "Immutable post-repair 1-5 star ratings keyed by completed requestId."
+    }
+  }
+}

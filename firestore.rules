@@ -1,0 +1,479 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default-deny all unspecified paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerifiedUser() && request.auth.uid == uid;
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'phone', 'role', 'vehicleSummary', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.role in ['motorist', 'mechanic']
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 32))
+        && (!('vehicleSummary' in data) || (data.vehicleSummary is string && data.vehicleSummary.size() <= 80))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidMechanic(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'specialty', 'rating', 'completedJobs',
+          'lat', 'lng', 'isOnline', 'qrPaymentUri', 'qrPaymentLabel',
+          'trialStartedAt', 'trialEndsAtMs', 'subscriptionStatus',
+          'subscriptionPaidUntilMs', 'monthlyFeeUsd', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'displayName', 'specialty', 'avatarUrl', 'rating', 'completedJobs',
+          'lat', 'lng', 'isOnline', 'qrPaymentUri', 'qrPaymentLabel',
+          'trialStartedAt', 'trialEndsAtMs', 'subscriptionStatus',
+          'subscriptionPaidUntilMs', 'monthlyFeeUsd', 'autoRenew',
+          'preferredBillingMethod', 'lastPaymentId',
+          'ratingCount', 'ratingSum', 'lastRatingId', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 80
+        && data.specialty is string && data.specialty.size() >= 2 && data.specialty.size() <= 80
+        && (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 300))
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && data.completedJobs is number && data.completedJobs >= 0 && data.completedJobs <= 100000
+        && data.lat is number && data.lat >= -90 && data.lat <= 90
+        && data.lng is number && data.lng >= -180 && data.lng <= 180
+        && data.isOnline is bool
+        && data.qrPaymentUri is string && data.qrPaymentUri.size() >= 4 && data.qrPaymentUri.size() <= 240
+        && data.qrPaymentLabel is string && data.qrPaymentLabel.size() >= 2 && data.qrPaymentLabel.size() <= 80
+        && data.trialStartedAt is timestamp
+        && data.trialEndsAtMs is number && data.trialEndsAtMs > 0
+        && data.subscriptionStatus in ['trial', 'active', 'expired']
+        && data.subscriptionPaidUntilMs is number && data.subscriptionPaidUntilMs >= 0
+        && data.monthlyFeeUsd == 4
+        && (!('autoRenew' in data) || data.autoRenew is bool)
+        && (!('preferredBillingMethod' in data) || data.preferredBillingMethod in ['qr_pay', 'card'])
+        && (!('lastPaymentId' in data) || isValidId(data.lastPaymentId))
+        && (!('ratingCount' in data) || (data.ratingCount is int && data.ratingCount >= 0 && data.ratingCount <= 1000000))
+        && (!('ratingSum' in data) || (data.ratingSum is int && data.ratingSum >= 0 && data.ratingSum <= 5000000))
+        && (!('lastRatingId' in data) || isValidId(data.lastRatingId))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRequest(data) {
+      return data.keys().hasAll([
+          'id', 'motoristId', 'motoristName', 'vehicleMakeModel',
+          'issueCategory', 'issueNotes', 'locationLabel', 'lat', 'lng',
+          'offerPriceUsd', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'motoristId', 'motoristName', 'vehicleMakeModel',
+          'issueCategory', 'issueNotes', 'locationLabel', 'lat', 'lng',
+          'offerPriceUsd', 'status', 'acceptedBidId', 'acceptedMechanicId',
+          'acceptedMechanicName', 'agreedPriceUsd', 'qrPaymentUri',
+          'qrPaymentLabel', 'paymentConfirmedAt', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.motoristId)
+        && data.motoristName is string && data.motoristName.size() >= 1 && data.motoristName.size() <= 80
+        && data.vehicleMakeModel is string && data.vehicleMakeModel.size() >= 2 && data.vehicleMakeModel.size() <= 80
+        && data.issueCategory in ['tire', 'battery', 'engine', 'tow', 'lockout', 'brakes']
+        && data.issueNotes is string && data.issueNotes.size() >= 3 && data.issueNotes.size() <= 320
+        && data.locationLabel is string && data.locationLabel.size() >= 2 && data.locationLabel.size() <= 120
+        && data.lat is number && data.lat >= -90 && data.lat <= 90
+        && data.lng is number && data.lng >= -180 && data.lng <= 180
+        && data.offerPriceUsd is number && data.offerPriceUsd >= 5 && data.offerPriceUsd <= 5000
+        && data.status in ['open', 'accepted', 'arrived', 'in_progress', 'payment_pending', 'completed', 'cancelled']
+        && (!('acceptedBidId' in data) || isValidId(data.acceptedBidId))
+        && (!('acceptedMechanicId' in data) || isValidId(data.acceptedMechanicId))
+        && (!('acceptedMechanicName' in data) || (data.acceptedMechanicName is string && data.acceptedMechanicName.size() >= 2 && data.acceptedMechanicName.size() <= 80))
+        && (!('agreedPriceUsd' in data) || (data.agreedPriceUsd is number && data.agreedPriceUsd >= 5 && data.agreedPriceUsd <= 5000))
+        && (!('qrPaymentUri' in data) || (data.qrPaymentUri is string && data.qrPaymentUri.size() >= 4 && data.qrPaymentUri.size() <= 240))
+        && (!('qrPaymentLabel' in data) || (data.qrPaymentLabel is string && data.qrPaymentLabel.size() >= 2 && data.qrPaymentLabel.size() <= 80))
+        && (!('paymentConfirmedAt' in data) || data.paymentConfirmedAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBid(data) {
+      return data.keys().hasAll([
+          'id', 'requestId', 'motoristId', 'mechanicId', 'mechanicName',
+          'mechanicSpecialty', 'mechanicRating', 'bidAmountUsd',
+          'etaMinutes', 'qrPaymentUri', 'qrPaymentLabel', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'requestId', 'motoristId', 'mechanicId', 'mechanicName',
+          'mechanicSpecialty', 'mechanicRating', 'bidAmountUsd',
+          'etaMinutes', 'note', 'qrPaymentUri', 'qrPaymentLabel', 'status',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.requestId)
+        && isValidId(data.motoristId)
+        && isValidId(data.mechanicId)
+        && data.mechanicName is string && data.mechanicName.size() >= 2 && data.mechanicName.size() <= 80
+        && data.mechanicSpecialty is string && data.mechanicSpecialty.size() >= 2 && data.mechanicSpecialty.size() <= 80
+        && data.mechanicRating is number && data.mechanicRating >= 1 && data.mechanicRating <= 5
+        && data.bidAmountUsd is number && data.bidAmountUsd >= 5 && data.bidAmountUsd <= 5000
+        && data.etaMinutes is number && data.etaMinutes >= 1 && data.etaMinutes <= 240
+        && (!('note' in data) || (data.note is string && data.note.size() <= 200))
+        && data.qrPaymentUri is string && data.qrPaymentUri.size() >= 4 && data.qrPaymentUri.size() <= 240
+        && data.qrPaymentLabel is string && data.qrPaymentLabel.size() >= 2 && data.qrPaymentLabel.size() <= 80
+        && data.status in ['pending', 'accepted', 'rejected', 'withdrawn']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSubscriptionPayment(data) {
+      return data.keys().hasAll(['id', 'mechanicId', 'amountUsd', 'billingMonths', 'method', 'validUntilMs', 'recipientAccount', 'paidAt'])
+        && data.keys().hasOnly(['id', 'mechanicId', 'amountUsd', 'billingMonths', 'method', 'validUntilMs', 'recipientAccount', 'paidAt'])
+        && isValidId(data.id)
+        && isValidId(data.mechanicId)
+        && data.mechanicId == request.auth.uid
+        && data.amountUsd == 4
+        && data.billingMonths == 1
+        && data.method in ['qr_pay', 'card']
+        && data.validUntilMs is number && data.validUntilMs > 0
+        && data.recipientAccount == '4638330011712851'
+        && data.paidAt is timestamp;
+    }
+
+    function isValidRating(data) {
+      return data.keys().hasAll([
+          'id', 'requestId', 'motoristId', 'motoristName',
+          'mechanicId', 'mechanicName', 'vehicleMakeModel',
+          'stars', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'requestId', 'motoristId', 'motoristName',
+          'mechanicId', 'mechanicName', 'vehicleMakeModel',
+          'stars', 'comment', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.requestId)
+        && data.id == data.requestId
+        && isValidId(data.motoristId)
+        && data.motoristId == request.auth.uid
+        && data.motoristName is string && data.motoristName.size() >= 1 && data.motoristName.size() <= 80
+        && isValidId(data.mechanicId)
+        && data.mechanicName is string && data.mechanicName.size() >= 2 && data.mechanicName.size() <= 80
+        && data.vehicleMakeModel is string && data.vehicleMakeModel.size() >= 2 && data.vehicleMakeModel.size() <= 80
+        && data.stars is int && data.stars >= 1 && data.stars <= 5
+        && (!('comment' in data) || (data.comment is string && data.comment.size() <= 280))
+        && data.createdAt is timestamp;
+    }
+
+    function mechanicCanBid(mechanicId) {
+      let m = get(/databases/$(database)/documents/mechanics/$(mechanicId)).data;
+      return (m.subscriptionStatus == 'trial' && m.trialEndsAtMs > request.time.toMillis())
+        || (m.subscriptionStatus == 'active' && m.subscriptionPaidUntilMs > request.time.toMillis());
+    }
+
+    // --- Collection Rules ---
+
+    // Private PII User Profiles: strict owner-only read/write
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if isVerifiedUser() && resource.data.uid == request.auth.uid;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUser(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phone', 'role', 'vehicleSummary', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Public Mechanic Directory, QR Payment Profile, & 7-Day Trial / $4 Monthly Subscription
+    match /mechanics/{mechanicId} {
+      allow get: if isValidId(mechanicId)
+        && isVerifiedUser()
+        && (mechanicId == request.auth.uid || resource != null);
+      allow list: if isVerifiedUser() && (resource.data.isOnline == true || resource.data.uid == request.auth.uid);
+      allow create: if isValidId(mechanicId)
+        && isOwner(mechanicId)
+        && isValidMechanic(incoming())
+        && incoming().uid == mechanicId
+        && (!('ratingCount' in incoming()) || incoming().ratingCount == 0)
+        && (!('ratingSum' in incoming()) || incoming().ratingSum == 0)
+        && incoming().trialStartedAt == request.time
+        && incoming().trialEndsAtMs <= request.time.toMillis() + 691200000
+        && incoming().updatedAt == request.time
+        && incoming().subscriptionStatus == 'trial';
+      allow update: if isValidId(mechanicId)
+        && isVerifiedUser()
+        && isValidMechanic(incoming())
+        && incoming().uid == existing().uid
+        && incoming().uid == mechanicId
+        && incoming().trialStartedAt == existing().trialStartedAt
+        && incoming().trialEndsAtMs == existing().trialEndsAtMs
+        && incoming().monthlyFeeUsd == existing().monthlyFeeUsd
+        && incoming().updatedAt == request.time
+        && (
+          (
+            mechanicId == request.auth.uid
+            && (
+              // Action 1: Update service & QR profile, GPS, or billing preferences
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'displayName', 'specialty', 'avatarUrl', 'lat', 'lng',
+                'isOnline', 'qrPaymentUri', 'qrPaymentLabel',
+                'autoRenew', 'preferredBillingMethod', 'updatedAt'
+              ])
+              ||
+              // Action 2: Expire trial when 7-day window has elapsed
+              (
+                existing().subscriptionStatus == 'trial'
+                && incoming().subscriptionStatus == 'expired'
+                && incoming().subscriptionPaidUntilMs == existing().subscriptionPaidUntilMs
+                && incoming().diff(existing()).affectedKeys().hasOnly(['subscriptionStatus', 'updatedAt'])
+              )
+              ||
+              // Action 3: Activate or renew $4/mo subscription atomically with payment ledger doc
+              (
+                incoming().subscriptionStatus == 'active'
+                && incoming().subscriptionPaidUntilMs > existing().subscriptionPaidUntilMs
+                && isValidId(incoming().lastPaymentId)
+                && !exists(/databases/$(database)/documents/subscriptionPayments/$(incoming().lastPaymentId))
+                && existsAfter(/databases/$(database)/documents/subscriptionPayments/$(incoming().lastPaymentId))
+                && incoming().diff(existing()).affectedKeys().hasOnly([
+                  'subscriptionStatus', 'subscriptionPaidUntilMs', 'lastPaymentId', 'preferredBillingMethod', 'updatedAt'
+                ])
+              )
+              ||
+              // Action 4: Increment completed jobs after repair
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly(['completedJobs', 'updatedAt'])
+                && incoming().completedJobs == existing().completedJobs + 1
+              )
+            )
+          )
+          ||
+          // Action 5: Motorist atomically updates aggregate rating alongside immutable /ratings/{requestId} doc
+          (
+            mechanicId != request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'ratingCount', 'ratingSum', 'lastRatingId', 'updatedAt'])
+            && isValidId(incoming().lastRatingId)
+            && !exists(/databases/$(database)/documents/ratings/$(incoming().lastRatingId))
+            && existsAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId))
+            && getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.mechanicId == mechanicId
+            && getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.motoristId == request.auth.uid
+            && incoming().ratingCount == (('ratingCount' in existing() && existing().ratingCount is int ? existing().ratingCount : 0) + 1)
+            && incoming().ratingSum == (('ratingSum' in existing() && existing().ratingSum is int ? existing().ratingSum : 0) + getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.stars)
+            && incoming().rating * incoming().ratingCount >= incoming().ratingSum - (incoming().ratingCount * 0.05)
+            && incoming().rating * incoming().ratingCount <= incoming().ratingSum + (incoming().ratingCount * 0.05)
+          )
+        );
+      allow delete: if false;
+    }
+
+    // Breakdown Requests
+    match /requests/{requestId} {
+      allow get: if isValidId(requestId)
+        && isVerifiedUser()
+        && resource != null
+        && (existing().status == 'open' || existing().motoristId == request.auth.uid || existing().acceptedMechanicId == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (resource.data.status == 'open' || resource.data.motoristId == request.auth.uid || resource.data.acceptedMechanicId == request.auth.uid);
+
+      allow create: if isValidId(requestId)
+        && isVerifiedUser()
+        && isValidRequest(incoming())
+        && incoming().keys().hasOnly([
+          'id', 'motoristId', 'motoristName', 'vehicleMakeModel',
+          'issueCategory', 'issueNotes', 'locationLabel', 'lat', 'lng',
+          'offerPriceUsd', 'status', 'createdAt', 'updatedAt'
+        ])
+        && incoming().id == requestId
+        && incoming().motoristId == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(requestId)
+        && isVerifiedUser()
+        && isValidRequest(incoming())
+        && existing().status != 'completed'
+        && existing().status != 'cancelled'
+        && incoming().id == existing().id
+        && incoming().motoristId == existing().motoristId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Motorist adjusts offer price while open
+          (
+            existing().motoristId == request.auth.uid
+            && existing().status == 'open'
+            && incoming().status == 'open'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['offerPriceUsd', 'updatedAt'])
+          )
+          ||
+          // Action: Motorist cancels request
+          (
+            existing().motoristId == request.auth.uid
+            && existing().status in ['open', 'accepted']
+            && incoming().status == 'cancelled'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+          ||
+          // Action: Motorist accepts a mechanic bid
+          (
+            existing().motoristId == request.auth.uid
+            && existing().status == 'open'
+            && incoming().status == 'accepted'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'acceptedBidId', 'acceptedMechanicId',
+              'acceptedMechanicName', 'agreedPriceUsd',
+              'qrPaymentUri', 'qrPaymentLabel', 'updatedAt'
+            ])
+            && exists(/databases/$(database)/documents/requests/$(requestId)/bids/$(incoming().acceptedBidId))
+          )
+          ||
+          // Action: Assigned mechanic progresses dispatch lifecycle
+          (
+            existing().acceptedMechanicId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && (
+              (existing().status == 'accepted' && incoming().status == 'arrived')
+              || (existing().status == 'arrived' && incoming().status == 'in_progress')
+              || (existing().status == 'in_progress' && incoming().status == 'payment_pending')
+            )
+          )
+          ||
+          // Action: QR payment confirmed -> job completed
+          (
+            (existing().motoristId == request.auth.uid || existing().acceptedMechanicId == request.auth.uid)
+            && existing().status == 'payment_pending'
+            && incoming().status == 'completed'
+            && incoming().paymentConfirmedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentConfirmedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if false;
+
+      // Subcollection: Mechanic Bids on a Breakdown Request (Master Gate)
+      match /bids/{bidId} {
+        allow get: if isValidId(requestId)
+          && isValidId(bidId)
+          && isVerifiedUser()
+          && resource != null
+          && (existing().mechanicId == request.auth.uid || existing().motoristId == request.auth.uid);
+        allow list: if isVerifiedUser()
+          && (resource.data.mechanicId == request.auth.uid || resource.data.motoristId == request.auth.uid);
+
+        allow create: if isValidId(requestId)
+          && isValidId(bidId)
+          && isVerifiedUser()
+          && isValidBid(incoming())
+          && incoming().id == bidId
+          && incoming().requestId == requestId
+          && incoming().mechanicId == request.auth.uid
+          && incoming().status == 'pending'
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/requests/$(requestId)).data.status == 'open'
+          && incoming().motoristId == get(/databases/$(database)/documents/requests/$(requestId)).data.motoristId
+          && mechanicCanBid(request.auth.uid);
+
+        allow update: if isValidId(requestId)
+          && isValidId(bidId)
+          && isVerifiedUser()
+          && isValidBid(incoming())
+          && existing().status == 'pending'
+          && incoming().id == existing().id
+          && incoming().requestId == existing().requestId
+          && incoming().motoristId == existing().motoristId
+          && incoming().mechanicId == existing().mechanicId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Mechanic updates bid amount/ETA or withdraws
+            (
+              existing().mechanicId == request.auth.uid
+              && incoming().status in ['pending', 'withdrawn']
+              && incoming().diff(existing()).affectedKeys().hasOnly(['bidAmountUsd', 'etaMinutes', 'note', 'status', 'updatedAt'])
+            )
+            ||
+            // Action: Motorist accepts or rejects bid
+            (
+              existing().motoristId == request.auth.uid
+              && incoming().status in ['accepted', 'rejected']
+              && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+            )
+          );
+        allow delete: if false;
+      }
+    }
+
+    // Mechanic $4/Month Subscription Payments Ledger
+    match /subscriptionPayments/{paymentId} {
+      allow get: if isValidId(paymentId) && isVerifiedUser() && resource != null && existing().mechanicId == request.auth.uid;
+      allow list: if isVerifiedUser() && resource.data.mechanicId == request.auth.uid;
+      allow create: if isValidId(paymentId)
+        && isVerifiedUser()
+        && isValidSubscriptionPayment(incoming())
+        && incoming().id == paymentId
+        && incoming().paidAt == request.time
+        && getAfter(/databases/$(database)/documents/mechanics/$(request.auth.uid)).data.subscriptionStatus == 'active'
+        && getAfter(/databases/$(database)/documents/mechanics/$(request.auth.uid)).data.subscriptionPaidUntilMs == incoming().validUntilMs
+        && getAfter(/databases/$(database)/documents/mechanics/$(request.auth.uid)).data.lastPaymentId == paymentId;
+      allow update, delete: if false;
+    }
+
+    // Post-Repair 1-5 Star Ratings (keyed 1:1 by completed requestId)
+    match /ratings/{ratingId} {
+      allow get: if isValidId(ratingId)
+        && isVerifiedUser()
+        && resource != null
+        && (existing().motoristId == request.auth.uid || existing().mechanicId == request.auth.uid);
+      allow list: if isVerifiedUser()
+        && (resource.data.motoristId == request.auth.uid || resource.data.mechanicId == request.auth.uid);
+      allow create: if isValidId(ratingId)
+        && isVerifiedUser()
+        && isValidRating(incoming())
+        && incoming().id == ratingId
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/requests/$(ratingId))
+        && get(/databases/$(database)/documents/requests/$(ratingId)).data.status == 'completed'
+        && get(/databases/$(database)/documents/requests/$(ratingId)).data.motoristId == request.auth.uid
+        && get(/databases/$(database)/documents/requests/$(ratingId)).data.acceptedMechanicId == incoming().mechanicId
+        && incoming().mechanicId != request.auth.uid
+        && existsAfter(/databases/$(database)/documents/mechanics/$(incoming().mechanicId))
+        && getAfter(/databases/$(database)/documents/mechanics/$(incoming().mechanicId)).data.lastRatingId == ratingId;
+      allow update, delete: if false;
+    }
+  }
+}
