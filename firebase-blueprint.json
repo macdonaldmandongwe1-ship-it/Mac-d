@@ -2,7 +2,7 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Private authenticated user profile storing PII and active workspace role.",
+      "description": "Private authenticated user profile storing PII and author/reader account metadata.",
       "type": "object",
       "properties": {
         "uid": {
@@ -22,21 +22,13 @@
           "minLength": 3,
           "maxLength": 160
         },
-        "phone": {
+        "bio": {
           "type": "string",
-          "maxLength": 32
+          "maxLength": 320
         },
         "role": {
           "type": "string",
-          "enum": ["motorist", "mechanic"]
-        },
-        "vehicleSummary": {
-          "type": "string",
-          "maxLength": 80
-        },
-        "identityVerificationStatus": {
-          "type": "string",
-          "enum": ["unverified", "pending_review", "verified", "rejected"]
+          "enum": ["author", "reader"]
         },
         "createdAt": {
           "type": "string",
@@ -49,9 +41,9 @@
       },
       "required": ["uid", "displayName", "email", "role", "createdAt", "updatedAt"]
     },
-    "MechanicProfile": {
-      "title": "MechanicProfile",
-      "description": "Public mechanic dispatch profile with QR payment details, accepted global payment rails, 7-day trial window, and $4/month subscription state.",
+    "AuthorSubscription": {
+      "title": "AuthorSubscription",
+      "description": "Active $1/month author publishing subscription paid to recipient account 4638330011712851.",
       "type": "object",
       "properties": {
         "uid": {
@@ -60,88 +52,33 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
-        "displayName": {
+        "penName": {
           "type": "string",
           "minLength": 2,
           "maxLength": 80
         },
-        "teamMemberCount": {
-          "type": "integer"
-        },
-        "teamMemberNames": {
-          "type": "array",
-          "description": "Company mechanic roster (minimum 3 mechanics required to join)."
-        },
-        "specialty": {
+        "status": {
           "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "avatarUrl": {
-          "type": "string",
-          "maxLength": 300
-        },
-        "rating": {
-          "type": "number"
-        },
-        "completedJobs": {
-          "type": "integer"
-        },
-        "lat": {
-          "type": "number"
-        },
-        "lng": {
-          "type": "number"
-        },
-        "isOnline": {
-          "type": "boolean"
-        },
-        "qrPaymentUri": {
-          "type": "string",
-          "minLength": 4,
-          "maxLength": 240
-        },
-        "qrPaymentLabel": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "acceptedPaymentMethods": {
-          "type": "array",
-          "description": "Up to 8 global payment methods accepted by the mechanic."
-        },
-        "countryCode": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 10
-        },
-        "identityVerificationStatus": {
-          "type": "string",
-          "enum": ["unverified", "pending_review", "verified", "rejected"]
-        },
-        "trialStartedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "trialEndsAtMs": {
-          "type": "integer"
-        },
-        "subscriptionStatus": {
-          "type": "string",
-          "enum": ["trial", "active", "expired"]
-        },
-        "subscriptionPaidUntilMs": {
-          "type": "integer"
+          "enum": ["active", "expired"]
         },
         "monthlyFeeUsd": {
+          "type": "integer"
+        },
+        "recipientAccount": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 32,
+          "pattern": "^4638330011712851$"
+        },
+        "paidUntilMs": {
           "type": "integer"
         },
         "autoRenew": {
           "type": "boolean"
         },
-        "preferredBillingMethod": {
+        "preferredMethod": {
           "type": "string",
-          "enum": ["qr_pay", "card"]
+          "enum": ["bank_transfer", "card", "digital_wallet", "mobile_money"]
         },
         "lastPaymentId": {
           "type": "string",
@@ -149,17 +86,9 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
-        "ratingCount": {
-          "type": "integer"
-        },
-        "ratingSum": {
-          "type": "integer"
-        },
-        "lastRatingId": {
+        "createdAt": {
           "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
+          "format": "date-time"
         },
         "updatedAt": {
           "type": "string",
@@ -168,152 +97,21 @@
       },
       "required": [
         "uid",
-        "displayName",
-        "specialty",
-        "rating",
-        "completedJobs",
-        "lat",
-        "lng",
-        "isOnline",
-        "qrPaymentUri",
-        "qrPaymentLabel",
-        "trialStartedAt",
-        "trialEndsAtMs",
-        "subscriptionStatus",
-        "subscriptionPaidUntilMs",
+        "penName",
+        "status",
         "monthlyFeeUsd",
-        "updatedAt"
-      ]
-    },
-    "BreakdownRequest": {
-      "title": "BreakdownRequest",
-      "description": "Motorist roadside assistance request with driver-set price offer, global payment method, and dispatch lifecycle.",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "motoristId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "motoristName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 80
-        },
-        "vehicleMakeModel": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "issueCategory": {
-          "type": "string",
-          "enum": ["tire", "battery", "engine", "tow", "lockout", "brakes"]
-        },
-        "issueNotes": {
-          "type": "string",
-          "minLength": 3,
-          "maxLength": 320
-        },
-        "locationLabel": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 120
-        },
-        "lat": {
-          "type": "number"
-        },
-        "lng": {
-          "type": "number"
-        },
-        "offerPriceUsd": {
-          "type": "number"
-        },
-        "paymentMethod": {
-          "type": "string",
-          "enum": ["cash", "mobile_money", "card", "bank_transfer", "upi", "pix", "digital_wallet", "crypto"]
-        },
-        "countryCode": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 10
-        },
-        "paymentDetailNote": {
-          "type": "string",
-          "maxLength": 80
-        },
-        "status": {
-          "type": "string",
-          "enum": ["open", "accepted", "arrived", "in_progress", "payment_pending", "completed", "cancelled"]
-        },
-        "acceptedBidId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "acceptedMechanicId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "acceptedMechanicName": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "agreedPriceUsd": {
-          "type": "number"
-        },
-        "qrPaymentUri": {
-          "type": "string",
-          "minLength": 4,
-          "maxLength": 240
-        },
-        "qrPaymentLabel": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "paymentConfirmedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "motoristId",
-        "motoristName",
-        "vehicleMakeModel",
-        "issueCategory",
-        "issueNotes",
-        "locationLabel",
-        "lat",
-        "lng",
-        "offerPriceUsd",
-        "status",
+        "recipientAccount",
+        "paidUntilMs",
+        "autoRenew",
+        "preferredMethod",
+        "lastPaymentId",
         "createdAt",
         "updatedAt"
       ]
     },
-    "MechanicBid": {
-      "title": "MechanicBid",
-      "description": "Mechanic acceptance or counter-bid submitted on an open breakdown request.",
+    "AuthorSubscriptionPayment": {
+      "title": "AuthorSubscriptionPayment",
+      "description": "Immutable $1/month author subscription payment receipt sent to account 4638330011712851.",
       "type": "object",
       "properties": {
         "id": {
@@ -322,99 +120,7 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
-        "requestId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "motoristId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "mechanicId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "mechanicName": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "mechanicSpecialty": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "mechanicRating": {
-          "type": "number"
-        },
-        "bidAmountUsd": {
-          "type": "number"
-        },
-        "etaMinutes": {
-          "type": "integer"
-        },
-        "note": {
-          "type": "string",
-          "maxLength": 200
-        },
-        "qrPaymentUri": {
-          "type": "string",
-          "minLength": 4,
-          "maxLength": 240
-        },
-        "qrPaymentLabel": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "status": {
-          "type": "string",
-          "enum": ["pending", "accepted", "rejected", "withdrawn"]
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "requestId",
-        "motoristId",
-        "mechanicId",
-        "mechanicName",
-        "mechanicSpecialty",
-        "mechanicRating",
-        "bidAmountUsd",
-        "etaMinutes",
-        "qrPaymentUri",
-        "qrPaymentLabel",
-        "status",
-        "createdAt",
-        "updatedAt"
-      ]
-    },
-    "SubscriptionPayment": {
-      "title": "SubscriptionPayment",
-      "description": "Immutable ledger entry for $4/month mechanic subscription renewals.",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "mechanicId": {
+        "authorId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
@@ -428,14 +134,7 @@
         },
         "method": {
           "type": "string",
-          "enum": ["qr_pay", "card"]
-        },
-        "paymentRail": {
-          "type": "string",
-          "maxLength": 40
-        },
-        "validUntilMs": {
-          "type": "integer"
+          "enum": ["bank_transfer", "card", "digital_wallet", "mobile_money"]
         },
         "recipientAccount": {
           "type": "string",
@@ -443,16 +142,34 @@
           "maxLength": 32,
           "pattern": "^4638330011712851$"
         },
+        "validUntilMs": {
+          "type": "integer"
+        },
+        "stripePaymentIntentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
         "paidAt": {
           "type": "string",
           "format": "date-time"
         }
       },
-      "required": ["id", "mechanicId", "amountUsd", "billingMonths", "method", "validUntilMs", "recipientAccount", "paidAt"]
+      "required": [
+        "id",
+        "authorId",
+        "amountUsd",
+        "billingMonths",
+        "method",
+        "recipientAccount",
+        "validUntilMs",
+        "paidAt"
+      ]
     },
-    "MechanicRating": {
-      "title": "MechanicRating",
-      "description": "Immutable post-repair 1-5 star rating submitted by a motorist after a breakdown transaction is completed.",
+    "BookCampaign": {
+      "title": "BookCampaign",
+      "description": "Debut author book listing with sample chapter excerpt, publishing cost breakdown, reader donation progress, and aggregate community ratings.",
       "type": "object",
       "properties": {
         "id": {
@@ -461,125 +178,129 @@
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
-        "requestId": {
+        "authorId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
-        "motoristId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "motoristName": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 80
-        },
-        "mechanicId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "mechanicName": {
+        "authorPenName": {
           "type": "string",
           "minLength": 2,
           "maxLength": 80
         },
-        "vehicleMakeModel": {
+        "authorBio": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 320
+        },
+        "title": {
           "type": "string",
           "minLength": 2,
-          "maxLength": 80
+          "maxLength": 120
         },
-        "stars": {
+        "subtitle": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "genre": {
+          "type": "string",
+          "enum": [
+            "Literary Fiction",
+            "Sci-Fi & Fantasy",
+            "Memoir & Essays",
+            "Poetry",
+            "Mystery & Thriller",
+            "Non-Fiction"
+          ]
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "Paperback & eBook",
+            "Hardcover Edition",
+            "Illustrated Monograph",
+            "Audiobook & Print"
+          ]
+        },
+        "pageCount": {
           "type": "integer"
         },
-        "comment": {
+        "pitch": {
           "type": "string",
+          "minLength": 10,
           "maxLength": 280
         },
-        "createdAt": {
+        "excerptTitle": {
           "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "requestId",
-        "motoristId",
-        "motoristName",
-        "mechanicId",
-        "mechanicName",
-        "vehicleMakeModel",
-        "stars",
-        "createdAt"
-      ]
-    },
-    "IdentityVerification": {
-      "title": "IdentityVerification",
-      "description": "Strictly private PII verification and background check submission containing original National ID or Passport image.",
-      "type": "object",
-      "properties": {
-        "uid": {
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "excerptText": {
+          "type": "string",
+          "minLength": 80,
+          "maxLength": 8000
+        },
+        "coverImageUrl": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 600
+        },
+        "coverTone": {
+          "type": "string",
+          "enum": ["cobalt", "sage", "charcoal", "alabaster"]
+        },
+        "goalUsd": {
+          "type": "number"
+        },
+        "raisedUsd": {
+          "type": "number"
+        },
+        "donorCount": {
+          "type": "integer"
+        },
+        "editingCostUsd": {
+          "type": "number"
+        },
+        "designCostUsd": {
+          "type": "number"
+        },
+        "printingCostUsd": {
+          "type": "number"
+        },
+        "ratingSum": {
+          "type": "integer"
+        },
+        "ratingCount": {
+          "type": "integer"
+        },
+        "averageRating": {
+          "type": "number"
+        },
+        "lastDonationId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
-        "role": {
+        "lastRatingId": {
           "type": "string",
-          "enum": ["motorist", "mechanic"]
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
-        "legalFullName": {
+        "visibility": {
           "type": "string",
-          "minLength": 2,
-          "maxLength": 100
-        },
-        "documentType": {
-          "type": "string",
-          "enum": ["national_id", "passport"]
-        },
-        "issuingCountry": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 80
-        },
-        "documentNumberLast4": {
-          "type": "string",
-          "minLength": 2,
-          "maxLength": 16
-        },
-        "documentImageDataUrl": {
-          "type": "string",
-          "minLength": 100,
-          "maxLength": 450000
-        },
-        "originalDocumentConfirmed": {
-          "type": "boolean"
-        },
-        "backgroundCheckConsent": {
-          "type": "boolean"
+          "enum": ["public", "archived"]
         },
         "status": {
           "type": "string",
-          "enum": ["pending_review", "verified", "rejected"]
+          "enum": ["seeking_funding", "funded", "published"]
         },
-        "reviewNote": {
-          "type": "string",
-          "maxLength": 240
+        "isShowcase": {
+          "type": "boolean"
         },
-        "reviewedBy": {
-          "type": "string",
-          "maxLength": 160
-        },
-        "submittedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "reviewedAt": {
+        "createdAt": {
           "type": "string",
           "format": "date-time"
         },
@@ -589,49 +310,265 @@
         }
       },
       "required": [
-        "uid",
-        "role",
-        "legalFullName",
-        "documentType",
-        "issuingCountry",
-        "documentNumberLast4",
-        "documentImageDataUrl",
-        "originalDocumentConfirmed",
-        "backgroundCheckConsent",
+        "id",
+        "authorId",
+        "authorPenName",
+        "authorBio",
+        "title",
+        "genre",
+        "format",
+        "pageCount",
+        "pitch",
+        "excerptTitle",
+        "excerptText",
+        "coverImageUrl",
+        "coverTone",
+        "goalUsd",
+        "raisedUsd",
+        "donorCount",
+        "editingCostUsd",
+        "designCostUsd",
+        "printingCostUsd",
+        "ratingSum",
+        "ratingCount",
+        "averageRating",
+        "visibility",
         "status",
-        "submittedAt",
+        "createdAt",
         "updatedAt"
+      ]
+    },
+    "BookDonation": {
+      "title": "BookDonation",
+      "description": "Immutable reader donation pledge supporting a debut author's publishing campaign.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "bookId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "bookTitle": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "authorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "donorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "donorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "amountUsd": {
+          "type": "number"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["card", "digital_wallet", "bank_transfer", "mobile_money"]
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 240
+        },
+        "stripePaymentIntentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["public"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "bookId",
+        "bookTitle",
+        "authorId",
+        "donorId",
+        "donorName",
+        "amountUsd",
+        "paymentMethod",
+        "visibility",
+        "createdAt"
+      ]
+    },
+    "BookRating": {
+      "title": "BookRating",
+      "description": "Immutable 1-5 star reader rating and literary critique keyed one per user per book.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "bookId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "bookTitle": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "authorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reviewerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reviewerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "stars": {
+          "type": "integer"
+        },
+        "craftFocus": {
+          "type": "string",
+          "enum": ["Storytelling", "Prose & Voice", "Worldbuilding", "Pacing", "Originality"]
+        },
+        "reviewText": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["public"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "bookId",
+        "bookTitle",
+        "authorId",
+        "reviewerId",
+        "reviewerName",
+        "stars",
+        "craftFocus",
+        "visibility",
+        "createdAt"
+      ]
+    },
+    "AuthorFollow": {
+      "title": "AuthorFollow",
+      "description": "Public reader follow record for a debut author, keyed deterministically one per follower per author.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorPenName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "followerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "followerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["public"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "authorId",
+        "authorPenName",
+        "followerId",
+        "followerName",
+        "visibility",
+        "createdAt"
       ]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Private PII user profiles strictly scoped to owner."
+      "description": "Private PII user profiles strictly scoped to the owner or verified admin."
     },
-    "/identityVerifications/{userId}": {
-      "schema": "IdentityVerification",
-      "description": "Strictly isolated original ID or Passport verification records for background checks (owner + verified admin only)."
+    "/authorSubscriptions/{authorId}": {
+      "schema": "AuthorSubscription",
+      "description": "Author $1/month publishing subscription state paid to 4638330011712851."
     },
-    "/mechanics/{mechanicId}": {
-      "schema": "MechanicProfile",
-      "description": "Mechanic company dispatch profile (3+ technicians), accepted global payment methods, QR payment setup, 7-day trial state, $4/month billing state, and aggregate rating."
+    "/authorSubscriptionPayments/{paymentId}": {
+      "schema": "AuthorSubscriptionPayment",
+      "description": "Immutable $1/month author subscription receipts paid to 4638330011712851."
     },
-    "/requests/{requestId}": {
-      "schema": "BreakdownRequest",
-      "description": "Motorist roadside breakdown requests and dispatch lifecycle."
+    "/books/{bookId}": {
+      "schema": "BookCampaign",
+      "description": "Debut author book campaigns with excerpts, publishing goals, live donation totals, and aggregate star ratings."
     },
-    "/requests/{requestId}/bids/{bidId}": {
-      "schema": "MechanicBid",
-      "description": "Mechanic bids and counter-offers under an open breakdown request."
-    },
-    "/subscriptionPayments/{paymentId}": {
-      "schema": "SubscriptionPayment",
-      "description": "Immutable $4/month mechanic subscription billing receipts."
+    "/donations/{donationId}": {
+      "schema": "BookDonation",
+      "description": "Immutable reader donation receipts atomically linked to book funding totals."
     },
     "/ratings/{ratingId}": {
-      "schema": "MechanicRating",
-      "description": "Immutable post-repair 1-5 star ratings keyed by completed requestId."
+      "schema": "BookRating",
+      "description": "Immutable 1-5 star reader ratings and reviews atomically linked to book aggregate ratings."
+    },
+    "/authorFollows/{followId}": {
+      "schema": "AuthorFollow",
+      "description": "Public reader follow records keyed {authorId}_{followerId}."
     }
   }
 }

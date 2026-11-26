@@ -36,247 +36,199 @@ service cloud.firestore {
       return isVerifiedUser() && request.auth.token.email == 'godfreedonald57@gmail.com';
     }
 
-    function isGlobalPaymentMethod(m) {
-      return m in ['cash', 'mobile_money', 'card', 'bank_transfer', 'upi', 'pix', 'digital_wallet', 'crypto'];
-    }
-
     // --- Validation Blueprints ---
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly([
-          'uid', 'displayName', 'email', 'phone', 'role', 'vehicleSummary',
-          'identityVerificationStatus', 'createdAt', 'updatedAt'
-        ])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'bio', 'role', 'createdAt', 'updatedAt'])
         && isValidId(data.uid)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
-        && data.role in ['motorist', 'mechanic']
-        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 32))
-        && (!('vehicleSummary' in data) || (data.vehicleSummary is string && data.vehicleSummary.size() <= 80))
-        && (!('identityVerificationStatus' in data) || data.identityVerificationStatus in ['unverified', 'pending_review', 'verified', 'rejected'])
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 320))
+        && data.role in ['author', 'reader']
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
 
-    function isValidIdentityVerification(data) {
+    function isValidAuthorSubscription(data) {
       return data.keys().hasAll([
-          'uid', 'role', 'legalFullName', 'documentType', 'issuingCountry',
-          'documentNumberLast4', 'documentImageDataUrl',
-          'originalDocumentConfirmed', 'backgroundCheckConsent',
-          'status', 'submittedAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
-          'uid', 'role', 'legalFullName', 'documentType', 'issuingCountry',
-          'documentNumberLast4', 'documentImageDataUrl',
-          'originalDocumentConfirmed', 'backgroundCheckConsent',
-          'status', 'reviewNote', 'reviewedBy', 'submittedAt', 'reviewedAt', 'updatedAt'
-        ])
-        && isValidId(data.uid)
-        && data.role in ['motorist', 'mechanic']
-        && data.legalFullName is string && data.legalFullName.size() >= 2 && data.legalFullName.size() <= 100
-        && data.documentType in ['national_id', 'passport']
-        && data.issuingCountry is string && data.issuingCountry.size() >= 2 && data.issuingCountry.size() <= 80
-        && data.documentNumberLast4 is string && data.documentNumberLast4.size() >= 2 && data.documentNumberLast4.size() <= 16
-        && data.documentImageDataUrl is string
-        && data.documentImageDataUrl.size() >= 100
-        && data.documentImageDataUrl.size() <= 450000
-        && (
-          data.documentImageDataUrl[0:23] == 'data:image/jpeg;base64,'
-          || data.documentImageDataUrl[0:22] == 'data:image/png;base64,'
-          || data.documentImageDataUrl[0:23] == 'data:image/webp;base64,'
-        )
-        && data.originalDocumentConfirmed == true
-        && data.backgroundCheckConsent == true
-        && data.status in ['pending_review', 'verified', 'rejected']
-        && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 240))
-        && (!('reviewedBy' in data) || (data.reviewedBy is string && data.reviewedBy.size() <= 160))
-        && data.submittedAt is timestamp
-        && (!('reviewedAt' in data) || data.reviewedAt is timestamp)
-        && data.updatedAt is timestamp;
-    }
-
-    function isValidMechanic(data) {
-      return data.keys().hasAll([
-          'uid', 'displayName', 'specialty', 'rating', 'completedJobs',
-          'lat', 'lng', 'isOnline', 'qrPaymentUri', 'qrPaymentLabel',
-          'trialStartedAt', 'trialEndsAtMs', 'subscriptionStatus',
-          'subscriptionPaidUntilMs', 'monthlyFeeUsd', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
-          'uid', 'displayName', 'companyRegistrationId', 'teamMemberCount', 'teamMemberNames',
-          'specialty', 'avatarUrl', 'rating', 'completedJobs',
-          'lat', 'lng', 'isOnline', 'qrPaymentUri', 'qrPaymentLabel',
-          'acceptedPaymentMethods', 'countryCode', 'identityVerificationStatus',
-          'trialStartedAt', 'trialEndsAtMs', 'subscriptionStatus',
-          'subscriptionPaidUntilMs', 'monthlyFeeUsd', 'autoRenew',
-          'preferredBillingMethod', 'lastPaymentId',
-          'ratingCount', 'ratingSum', 'lastRatingId', 'updatedAt'
-        ])
-        && isValidId(data.uid)
-        && data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 80
-        && (!('companyRegistrationId' in data) || (data.companyRegistrationId is string && data.companyRegistrationId.size() >= 2 && data.companyRegistrationId.size() <= 64))
-        && (!('teamMemberCount' in data) || (data.teamMemberCount is int && data.teamMemberCount >= 3 && data.teamMemberCount <= 500))
-        && (!('teamMemberNames' in data) || (
-          data.teamMemberNames is list
-          && data.teamMemberNames.size() >= 3
-          && data.teamMemberNames.size() <= 20
-          && data.teamMemberNames[0] is string
-          && data.teamMemberNames[1] is string
-          && data.teamMemberNames[2] is string
-        ))
-        && data.specialty is string && data.specialty.size() >= 2 && data.specialty.size() <= 80
-        && (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 300))
-        && data.rating is number && data.rating >= 1 && data.rating <= 5
-        && data.completedJobs is number && data.completedJobs >= 0 && data.completedJobs <= 100000
-        && data.lat is number && data.lat >= -90 && data.lat <= 90
-        && data.lng is number && data.lng >= -180 && data.lng <= 180
-        && data.isOnline is bool
-        && data.qrPaymentUri is string && data.qrPaymentUri.size() >= 4 && data.qrPaymentUri.size() <= 240
-        && data.qrPaymentLabel is string && data.qrPaymentLabel.size() >= 2 && data.qrPaymentLabel.size() <= 80
-        && (!('acceptedPaymentMethods' in data) || (
-          data.acceptedPaymentMethods is list
-          && data.acceptedPaymentMethods.size() >= 1
-          && data.acceptedPaymentMethods.size() <= 8
-          && data.acceptedPaymentMethods.hasOnly(['cash', 'mobile_money', 'card', 'bank_transfer', 'upi', 'pix', 'digital_wallet', 'crypto'])
-          && data.acceptedPaymentMethods[0] is string
-        ))
-        && (!('countryCode' in data) || (data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 10))
-        && (!('identityVerificationStatus' in data) || data.identityVerificationStatus in ['unverified', 'pending_review', 'verified', 'rejected'])
-        && data.trialStartedAt is timestamp
-        && data.trialEndsAtMs is number && data.trialEndsAtMs > 0
-        && data.subscriptionStatus in ['trial', 'active', 'expired']
-        && data.subscriptionPaidUntilMs is number && data.subscriptionPaidUntilMs >= 0
-        && data.monthlyFeeUsd == 4
-        && (!('autoRenew' in data) || data.autoRenew is bool)
-        && (!('preferredBillingMethod' in data) || data.preferredBillingMethod in ['qr_pay', 'card'])
-        && (!('lastPaymentId' in data) || isValidId(data.lastPaymentId))
-        && (!('ratingCount' in data) || (data.ratingCount is int && data.ratingCount >= 0 && data.ratingCount <= 1000000))
-        && (!('ratingSum' in data) || (data.ratingSum is int && data.ratingSum >= 0 && data.ratingSum <= 5000000))
-        && (!('lastRatingId' in data) || isValidId(data.lastRatingId))
-        && data.updatedAt is timestamp;
-    }
-
-    function isValidRequest(data) {
-      return data.keys().hasAll([
-          'id', 'motoristId', 'motoristName', 'vehicleMakeModel',
-          'issueCategory', 'issueNotes', 'locationLabel', 'lat', 'lng',
-          'offerPriceUsd', 'status', 'createdAt', 'updatedAt'
-        ])
-        && data.keys().hasOnly([
-          'id', 'motoristId', 'motoristName', 'vehicleMakeModel',
-          'issueCategory', 'issueNotes', 'locationLabel', 'lat', 'lng',
-          'offerPriceUsd', 'paymentMethod', 'countryCode', 'paymentDetailNote',
-          'status', 'acceptedBidId', 'acceptedMechanicId',
-          'acceptedMechanicName', 'agreedPriceUsd', 'qrPaymentUri',
-          'qrPaymentLabel', 'paymentConfirmedAt', 'createdAt', 'updatedAt'
-        ])
-        && isValidId(data.id)
-        && isValidId(data.motoristId)
-        && data.motoristName is string && data.motoristName.size() >= 1 && data.motoristName.size() <= 80
-        && data.vehicleMakeModel is string && data.vehicleMakeModel.size() >= 2 && data.vehicleMakeModel.size() <= 80
-        && data.issueCategory in ['tire', 'battery', 'engine', 'tow', 'lockout', 'brakes']
-        && data.issueNotes is string && data.issueNotes.size() >= 3 && data.issueNotes.size() <= 320
-        && data.locationLabel is string && data.locationLabel.size() >= 2 && data.locationLabel.size() <= 120
-        && data.lat is number && data.lat >= -90 && data.lat <= 90
-        && data.lng is number && data.lng >= -180 && data.lng <= 180
-        && data.offerPriceUsd is number && data.offerPriceUsd >= 5 && data.offerPriceUsd <= 5000
-        && (!('paymentMethod' in data) || isGlobalPaymentMethod(data.paymentMethod))
-        && (!('countryCode' in data) || (data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 10))
-        && (!('paymentDetailNote' in data) || (data.paymentDetailNote is string && data.paymentDetailNote.size() <= 80))
-        && data.status in ['open', 'accepted', 'arrived', 'in_progress', 'payment_pending', 'completed', 'cancelled']
-        && (!('acceptedBidId' in data) || isValidId(data.acceptedBidId))
-        && (!('acceptedMechanicId' in data) || isValidId(data.acceptedMechanicId))
-        && (!('acceptedMechanicName' in data) || (data.acceptedMechanicName is string && data.acceptedMechanicName.size() >= 2 && data.acceptedMechanicName.size() <= 80))
-        && (!('agreedPriceUsd' in data) || (data.agreedPriceUsd is number && data.agreedPriceUsd >= 5 && data.agreedPriceUsd <= 5000))
-        && (!('qrPaymentUri' in data) || (data.qrPaymentUri is string && data.qrPaymentUri.size() >= 4 && data.qrPaymentUri.size() <= 240))
-        && (!('qrPaymentLabel' in data) || (data.qrPaymentLabel is string && data.qrPaymentLabel.size() >= 2 && data.qrPaymentLabel.size() <= 80))
-        && (!('paymentConfirmedAt' in data) || data.paymentConfirmedAt is timestamp)
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
-    }
-
-    function isValidBid(data) {
-      return data.keys().hasAll([
-          'id', 'requestId', 'motoristId', 'mechanicId', 'mechanicName',
-          'mechanicSpecialty', 'mechanicRating', 'bidAmountUsd',
-          'etaMinutes', 'qrPaymentUri', 'qrPaymentLabel', 'status',
+          'uid', 'penName', 'status', 'monthlyFeeUsd', 'recipientAccount',
+          'paidUntilMs', 'autoRenew', 'preferredMethod', 'lastPaymentId',
           'createdAt', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'id', 'requestId', 'motoristId', 'mechanicId', 'mechanicName',
-          'mechanicSpecialty', 'mechanicRating', 'bidAmountUsd',
-          'etaMinutes', 'note', 'qrPaymentUri', 'qrPaymentLabel', 'status',
+          'uid', 'penName', 'status', 'monthlyFeeUsd', 'recipientAccount',
+          'paidUntilMs', 'autoRenew', 'preferredMethod', 'lastPaymentId',
           'createdAt', 'updatedAt'
         ])
-        && isValidId(data.id)
-        && isValidId(data.requestId)
-        && isValidId(data.motoristId)
-        && isValidId(data.mechanicId)
-        && data.mechanicName is string && data.mechanicName.size() >= 2 && data.mechanicName.size() <= 80
-        && data.mechanicSpecialty is string && data.mechanicSpecialty.size() >= 2 && data.mechanicSpecialty.size() <= 80
-        && data.mechanicRating is number && data.mechanicRating >= 1 && data.mechanicRating <= 5
-        && data.bidAmountUsd is number && data.bidAmountUsd >= 5 && data.bidAmountUsd <= 5000
-        && data.etaMinutes is number && data.etaMinutes >= 1 && data.etaMinutes <= 240
-        && (!('note' in data) || (data.note is string && data.note.size() <= 200))
-        && data.qrPaymentUri is string && data.qrPaymentUri.size() >= 4 && data.qrPaymentUri.size() <= 240
-        && data.qrPaymentLabel is string && data.qrPaymentLabel.size() >= 2 && data.qrPaymentLabel.size() <= 80
-        && data.status in ['pending', 'accepted', 'rejected', 'withdrawn']
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
-    }
-
-    function isValidSubscriptionPayment(data) {
-      return data.keys().hasAll(['id', 'mechanicId', 'amountUsd', 'billingMonths', 'method', 'validUntilMs', 'recipientAccount', 'paidAt'])
-        && data.keys().hasOnly(['id', 'mechanicId', 'amountUsd', 'billingMonths', 'method', 'paymentRail', 'validUntilMs', 'recipientAccount', 'paidAt'])
-        && isValidId(data.id)
-        && isValidId(data.mechanicId)
-        && data.mechanicId == request.auth.uid
-        && data.amountUsd == 4
-        && data.billingMonths == 1
-        && data.method in ['qr_pay', 'card']
-        && (!('paymentRail' in data) || (data.paymentRail is string && data.paymentRail.size() >= 2 && data.paymentRail.size() <= 40))
-        && data.validUntilMs is number && data.validUntilMs > 0
+        && isValidId(data.uid)
+        && data.penName is string && data.penName.size() >= 2 && data.penName.size() <= 80
+        && data.status in ['active', 'expired']
+        && data.monthlyFeeUsd == 1
         && data.recipientAccount == '4638330011712851'
+        && data.paidUntilMs is int && data.paidUntilMs > 0
+        && data.autoRenew is bool
+        && data.preferredMethod in ['bank_transfer', 'card', 'digital_wallet', 'mobile_money']
+        && isValidId(data.lastPaymentId)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuthorSubscriptionPayment(data) {
+      return data.keys().hasAll([
+          'id', 'authorId', 'amountUsd', 'billingMonths', 'method',
+          'recipientAccount', 'validUntilMs', 'paidAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'authorId', 'amountUsd', 'billingMonths', 'method',
+          'recipientAccount', 'validUntilMs', 'stripePaymentIntentId', 'paidAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.authorId)
+        && data.authorId == request.auth.uid
+        && data.amountUsd == 1
+        && data.billingMonths == 1
+        && data.method in ['bank_transfer', 'card', 'digital_wallet', 'mobile_money']
+        && data.recipientAccount == '4638330011712851'
+        && data.validUntilMs is int && data.validUntilMs > 0
+        && (!('stripePaymentIntentId' in data) || isValidId(data.stripePaymentIntentId))
         && data.paidAt is timestamp;
+    }
+
+    function authorCanPublish(uid) {
+      let subPath = /databases/$(database)/documents/authorSubscriptions/$(uid);
+      return exists(subPath)
+        && get(subPath).data.status == 'active'
+        && get(subPath).data.monthlyFeeUsd == 1
+        && get(subPath).data.recipientAccount == '4638330011712851'
+        && get(subPath).data.paidUntilMs > request.time.toMillis();
+    }
+
+    function isValidBook(data) {
+      return data.keys().hasAll([
+          'id', 'authorId', 'authorPenName', 'authorBio', 'title',
+          'genre', 'format', 'pageCount', 'pitch', 'excerptTitle', 'excerptText',
+          'coverImageUrl', 'coverTone', 'goalUsd', 'raisedUsd', 'donorCount',
+          'editingCostUsd', 'designCostUsd', 'printingCostUsd',
+          'ratingSum', 'ratingCount', 'averageRating',
+          'visibility', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'authorId', 'authorPenName', 'authorBio', 'title', 'subtitle',
+          'genre', 'format', 'pageCount', 'pitch', 'excerptTitle', 'excerptText',
+          'coverImageUrl', 'coverTone', 'goalUsd', 'raisedUsd', 'donorCount',
+          'editingCostUsd', 'designCostUsd', 'printingCostUsd',
+          'ratingSum', 'ratingCount', 'averageRating',
+          'lastDonationId', 'lastRatingId', 'visibility', 'status', 'isShowcase',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.authorId)
+        && data.authorPenName is string && data.authorPenName.size() >= 2 && data.authorPenName.size() <= 80
+        && data.authorBio is string && data.authorBio.size() >= 10 && data.authorBio.size() <= 320
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 120
+        && (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 140))
+        && data.genre in [
+          'Literary Fiction',
+          'Sci-Fi & Fantasy',
+          'Memoir & Essays',
+          'Poetry',
+          'Mystery & Thriller',
+          'Non-Fiction'
+        ]
+        && data.format in [
+          'Paperback & eBook',
+          'Hardcover Edition',
+          'Illustrated Monograph',
+          'Audiobook & Print'
+        ]
+        && data.pageCount is int && data.pageCount >= 10 && data.pageCount <= 2000
+        && data.pitch is string && data.pitch.size() >= 10 && data.pitch.size() <= 280
+        && data.excerptTitle is string && data.excerptTitle.size() >= 2 && data.excerptTitle.size() <= 120
+        && data.excerptText is string && data.excerptText.size() >= 80 && data.excerptText.size() <= 8000
+        && data.coverImageUrl is string && data.coverImageUrl.size() >= 4 && data.coverImageUrl.size() <= 600
+        && data.coverTone in ['cobalt', 'sage', 'charcoal', 'alabaster']
+        && data.goalUsd is number && data.goalUsd >= 50 && data.goalUsd <= 100000
+        && data.raisedUsd is number && data.raisedUsd >= 0 && data.raisedUsd <= 1000000
+        && data.donorCount is int && data.donorCount >= 0 && data.donorCount <= 100000
+        && data.editingCostUsd is number && data.editingCostUsd >= 0 && data.editingCostUsd <= 100000
+        && data.designCostUsd is number && data.designCostUsd >= 0 && data.designCostUsd <= 100000
+        && data.printingCostUsd is number && data.printingCostUsd >= 0 && data.printingCostUsd <= 100000
+        && data.ratingSum is int && data.ratingSum >= 0 && data.ratingSum <= 5000000
+        && data.ratingCount is int && data.ratingCount >= 0 && data.ratingCount <= 1000000
+        && data.averageRating is number && data.averageRating >= 0 && data.averageRating <= 5
+        && (!('lastDonationId' in data) || isValidId(data.lastDonationId))
+        && (!('lastRatingId' in data) || isValidId(data.lastRatingId))
+        && data.visibility in ['public', 'archived']
+        && data.status in ['seeking_funding', 'funded', 'published']
+        && (!('isShowcase' in data) || data.isShowcase is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDonation(data) {
+      return data.keys().hasAll([
+          'id', 'bookId', 'bookTitle', 'authorId', 'donorId', 'donorName',
+          'amountUsd', 'paymentMethod', 'visibility', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'bookId', 'bookTitle', 'authorId', 'donorId', 'donorName',
+          'amountUsd', 'paymentMethod', 'message', 'stripePaymentIntentId', 'visibility', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.bookId)
+        && data.bookTitle is string && data.bookTitle.size() >= 2 && data.bookTitle.size() <= 120
+        && isValidId(data.authorId)
+        && isValidId(data.donorId)
+        && data.donorName is string && data.donorName.size() >= 1 && data.donorName.size() <= 80
+        && data.amountUsd is number && data.amountUsd >= 1 && data.amountUsd <= 5000
+        && data.paymentMethod in ['card', 'digital_wallet', 'bank_transfer', 'mobile_money']
+        && (!('message' in data) || (data.message is string && data.message.size() <= 240))
+        && (!('stripePaymentIntentId' in data) || isValidId(data.stripePaymentIntentId))
+        && data.visibility == 'public'
+        && data.createdAt is timestamp;
     }
 
     function isValidRating(data) {
       return data.keys().hasAll([
-          'id', 'requestId', 'motoristId', 'motoristName',
-          'mechanicId', 'mechanicName', 'vehicleMakeModel',
-          'stars', 'createdAt'
+          'id', 'bookId', 'bookTitle', 'authorId', 'reviewerId', 'reviewerName',
+          'stars', 'craftFocus', 'visibility', 'createdAt'
         ])
         && data.keys().hasOnly([
-          'id', 'requestId', 'motoristId', 'motoristName',
-          'mechanicId', 'mechanicName', 'vehicleMakeModel',
-          'stars', 'comment', 'createdAt'
+          'id', 'bookId', 'bookTitle', 'authorId', 'reviewerId', 'reviewerName',
+          'stars', 'craftFocus', 'reviewText', 'visibility', 'createdAt'
         ])
         && isValidId(data.id)
-        && isValidId(data.requestId)
-        && data.id == data.requestId
-        && isValidId(data.motoristId)
-        && data.motoristId == request.auth.uid
-        && data.motoristName is string && data.motoristName.size() >= 1 && data.motoristName.size() <= 80
-        && isValidId(data.mechanicId)
-        && data.mechanicName is string && data.mechanicName.size() >= 2 && data.mechanicName.size() <= 80
-        && data.vehicleMakeModel is string && data.vehicleMakeModel.size() >= 2 && data.vehicleMakeModel.size() <= 80
+        && isValidId(data.bookId)
+        && data.bookTitle is string && data.bookTitle.size() >= 2 && data.bookTitle.size() <= 120
+        && isValidId(data.authorId)
+        && isValidId(data.reviewerId)
+        && data.reviewerName is string && data.reviewerName.size() >= 1 && data.reviewerName.size() <= 80
         && data.stars is int && data.stars >= 1 && data.stars <= 5
-        && (!('comment' in data) || (data.comment is string && data.comment.size() <= 280))
+        && data.craftFocus in ['Storytelling', 'Prose & Voice', 'Worldbuilding', 'Pacing', 'Originality']
+        && (!('reviewText' in data) || (data.reviewText is string && data.reviewText.size() <= 600))
+        && data.visibility == 'public'
         && data.createdAt is timestamp;
     }
 
-    function mechanicCanBid(mechanicId) {
-      let m = get(/databases/$(database)/documents/mechanics/$(mechanicId)).data;
-      return ((!('teamMemberCount' in m) || m.teamMemberCount >= 3))
-        && (
-          (m.subscriptionStatus == 'trial' && m.trialEndsAtMs > request.time.toMillis())
-          || (m.subscriptionStatus == 'active' && m.subscriptionPaidUntilMs > request.time.toMillis())
-        );
+    function isValidAuthorFollow(data) {
+      return data.keys().hasAll([
+          'id', 'authorId', 'authorPenName', 'followerId', 'followerName', 'visibility', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'authorId', 'authorPenName', 'followerId', 'followerName', 'visibility', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.authorId)
+        && data.authorPenName is string && data.authorPenName.size() >= 2 && data.authorPenName.size() <= 80
+        && isValidId(data.followerId)
+        && data.followerName is string && data.followerName.size() >= 1 && data.followerName.size() <= 80
+        && data.visibility == 'public'
+        && data.createdAt is timestamp;
     }
 
     // --- Collection Rules ---
 
-    // Private PII User Profiles: strict owner-only (or verified admin) read/write
+    // Private PII User Profiles: strict owner-only (or verified admin)
     match /users/{userId} {
       allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
       allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
@@ -284,383 +236,269 @@ service cloud.firestore {
         && isOwner(userId)
         && isValidUser(incoming())
         && incoming().uid == request.auth.uid
-        && (!('identityVerificationStatus' in incoming()) || incoming().identityVerificationStatus == 'unverified')
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
       allow update: if isValidId(userId)
-        && isVerifiedUser()
+        && isOwner(userId)
         && isValidUser(incoming())
         && incoming().uid == existing().uid
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && (
-          (
-            isOwner(userId)
-            && incoming().diff(existing()).affectedKeys().hasOnly([
-              'displayName', 'phone', 'role', 'vehicleSummary',
-              'identityVerificationStatus', 'updatedAt'
-            ])
-            && (
-              !('identityVerificationStatus' in incoming())
-              || (('identityVerificationStatus' in existing()) && incoming().identityVerificationStatus == existing().identityVerificationStatus)
-              || (
-                incoming().identityVerificationStatus == 'pending_review'
-                && existsAfter(/databases/$(database)/documents/identityVerifications/$(userId))
-              )
-            )
-          )
-          ||
-          (
-            isAdmin()
-            && incoming().diff(existing()).affectedKeys().hasOnly(['identityVerificationStatus', 'updatedAt'])
-            && incoming().identityVerificationStatus in ['pending_review', 'verified', 'rejected']
-          )
-        );
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'bio', 'role', 'updatedAt']);
       allow delete: if false;
     }
 
-    // Strictly Isolated Original ID / Passport Verification & Background Check Records
-    match /identityVerifications/{userId} {
-      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+    // Author $1/Month Subscription State (paid to 4638330011712851)
+    match /authorSubscriptions/{authorId} {
+      allow get: if isValidId(authorId) && (isOwner(authorId) || isAdmin());
       allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isValidId(userId)
-        && isOwner(userId)
-        && isValidIdentityVerification(incoming())
-        && incoming().uid == userId
+
+      allow create: if isValidId(authorId)
+        && isOwner(authorId)
+        && isValidAuthorSubscription(incoming())
+        && incoming().uid == authorId
         && incoming().uid == request.auth.uid
-        && incoming().status == 'pending_review'
-        && !('reviewNote' in incoming())
-        && !('reviewedBy' in incoming())
-        && !('reviewedAt' in incoming())
-        && incoming().submittedAt == request.time
-        && incoming().updatedAt == request.time;
-      allow update: if isValidId(userId)
-        && isVerifiedUser()
-        && isValidIdentityVerification(incoming())
-        && incoming().uid == existing().uid
-        && incoming().uid == userId
-        && incoming().submittedAt == existing().submittedAt
-        && incoming().updatedAt == request.time
-        && (
-          (
-            isOwner(userId)
-            && existing().status in ['pending_review', 'rejected']
-            && incoming().status == 'pending_review'
-            && incoming().diff(existing()).affectedKeys().hasOnly([
-              'role', 'legalFullName', 'documentType', 'issuingCountry',
-              'documentNumberLast4', 'documentImageDataUrl',
-              'originalDocumentConfirmed', 'backgroundCheckConsent',
-              'status', 'updatedAt'
-            ])
-          )
-          ||
-          (
-            isAdmin()
-            && incoming().reviewedBy == request.auth.token.email
-            && incoming().reviewedAt == request.time
-            && incoming().status in ['pending_review', 'verified', 'rejected']
-            && incoming().diff(existing()).affectedKeys().hasOnly([
-              'status', 'reviewNote', 'reviewedBy', 'reviewedAt', 'updatedAt'
-            ])
-          )
-        );
-      allow delete: if false;
-    }
-
-    // Public Mechanic Company Directory (3+ mechanics), Accepted Global Payments, & 7-Day Trial / $4 Monthly Subscription
-    match /mechanics/{mechanicId} {
-      allow get: if isValidId(mechanicId)
-        && isVerifiedUser()
-        && (mechanicId == request.auth.uid || resource != null);
-      allow list: if isVerifiedUser() && (resource.data.isOnline == true || resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isValidId(mechanicId)
-        && isOwner(mechanicId)
-        && isValidMechanic(incoming())
-        && incoming().uid == mechanicId
-        && incoming().teamMemberCount is int && incoming().teamMemberCount >= 3
-        && incoming().teamMemberNames is list && incoming().teamMemberNames.size() >= 3
-        && (!('identityVerificationStatus' in incoming())
-          || incoming().identityVerificationStatus == 'unverified'
-          || (incoming().identityVerificationStatus == 'pending_review' && exists(/databases/$(database)/documents/identityVerifications/$(mechanicId)))
-        )
-        && (!('ratingCount' in incoming()) || incoming().ratingCount == 0)
-        && (!('ratingSum' in incoming()) || incoming().ratingSum == 0)
-        && incoming().trialStartedAt == request.time
-        && incoming().trialEndsAtMs <= request.time.toMillis() + 691200000
-        && incoming().updatedAt == request.time
-        && incoming().subscriptionStatus == 'trial';
-      allow update: if isValidId(mechanicId)
-        && isVerifiedUser()
-        && isValidMechanic(incoming())
-        && incoming().uid == existing().uid
-        && incoming().uid == mechanicId
-        && incoming().trialStartedAt == existing().trialStartedAt
-        && incoming().trialEndsAtMs == existing().trialEndsAtMs
-        && incoming().monthlyFeeUsd == existing().monthlyFeeUsd
-        && incoming().updatedAt == request.time
-        && (
-          (
-            mechanicId == request.auth.uid
-            && (
-              // Action 1: Update company profile, 3+ team roster, accepted payment methods, QR profile, GPS, or billing prefs
-              incoming().diff(existing()).affectedKeys().hasOnly([
-                'displayName', 'companyRegistrationId', 'teamMemberCount', 'teamMemberNames',
-                'specialty', 'avatarUrl', 'lat', 'lng',
-                'isOnline', 'qrPaymentUri', 'qrPaymentLabel', 'acceptedPaymentMethods', 'countryCode',
-                'autoRenew', 'preferredBillingMethod', 'updatedAt'
-              ])
-              ||
-              // Action 1b: Sync pending_review verification status alongside /identityVerifications submission
-              (
-                incoming().diff(existing()).affectedKeys().hasOnly(['identityVerificationStatus', 'updatedAt'])
-                && incoming().identityVerificationStatus == 'pending_review'
-                && existsAfter(/databases/$(database)/documents/identityVerifications/$(mechanicId))
-              )
-              ||
-              // Action 2: Expire trial when 7-day window has elapsed
-              (
-                existing().subscriptionStatus == 'trial'
-                && incoming().subscriptionStatus == 'expired'
-                && incoming().subscriptionPaidUntilMs == existing().subscriptionPaidUntilMs
-                && incoming().diff(existing()).affectedKeys().hasOnly(['subscriptionStatus', 'updatedAt'])
-              )
-              ||
-              // Action 3: Activate or renew $4/mo subscription atomically with payment ledger doc
-              (
-                incoming().subscriptionStatus == 'active'
-                && incoming().subscriptionPaidUntilMs > existing().subscriptionPaidUntilMs
-                && isValidId(incoming().lastPaymentId)
-                && !exists(/databases/$(database)/documents/subscriptionPayments/$(incoming().lastPaymentId))
-                && existsAfter(/databases/$(database)/documents/subscriptionPayments/$(incoming().lastPaymentId))
-                && incoming().diff(existing()).affectedKeys().hasOnly([
-                  'subscriptionStatus', 'subscriptionPaidUntilMs', 'lastPaymentId', 'preferredBillingMethod', 'updatedAt'
-                ])
-              )
-              ||
-              // Action 4: Increment completed jobs after repair
-              (
-                incoming().diff(existing()).affectedKeys().hasOnly(['completedJobs', 'updatedAt'])
-                && incoming().completedJobs == existing().completedJobs + 1
-              )
-            )
-          )
-          ||
-          // Action 4b: Verified Admin reviews mechanic company identity verification
-          (
-            isAdmin()
-            && incoming().diff(existing()).affectedKeys().hasOnly(['identityVerificationStatus', 'updatedAt'])
-            && incoming().identityVerificationStatus in ['pending_review', 'verified', 'rejected']
-          )
-          ||
-          // Action 5: Motorist atomically updates aggregate rating alongside immutable /ratings/{requestId} doc
-          (
-            mechanicId != request.auth.uid
-            && incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'ratingCount', 'ratingSum', 'lastRatingId', 'updatedAt'])
-            && isValidId(incoming().lastRatingId)
-            && !exists(/databases/$(database)/documents/ratings/$(incoming().lastRatingId))
-            && existsAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId))
-            && getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.mechanicId == mechanicId
-            && getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.motoristId == request.auth.uid
-            && incoming().ratingCount == (('ratingCount' in existing() && existing().ratingCount is int ? existing().ratingCount : 0) + 1)
-            && incoming().ratingSum == (('ratingSum' in existing() && existing().ratingSum is int ? existing().ratingSum : 0) + getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.stars)
-            && incoming().rating * incoming().ratingCount >= incoming().ratingSum - (incoming().ratingCount * 0.05)
-            && incoming().rating * incoming().ratingCount <= incoming().ratingSum + (incoming().ratingCount * 0.05)
-          )
-        );
-      allow delete: if false;
-    }
-
-    // Breakdown Requests
-    match /requests/{requestId} {
-      allow get: if isValidId(requestId)
-        && isVerifiedUser()
-        && resource != null
-        && (existing().status == 'open' || existing().motoristId == request.auth.uid || existing().acceptedMechanicId == request.auth.uid);
-      allow list: if isVerifiedUser()
-        && (resource.data.status == 'open' || resource.data.motoristId == request.auth.uid || resource.data.acceptedMechanicId == request.auth.uid);
-
-      allow create: if isValidId(requestId)
-        && isVerifiedUser()
-        && isValidRequest(incoming())
-        && incoming().keys().hasOnly([
-          'id', 'motoristId', 'motoristName', 'vehicleMakeModel',
-          'issueCategory', 'issueNotes', 'locationLabel', 'lat', 'lng',
-          'offerPriceUsd', 'paymentMethod', 'countryCode', 'paymentDetailNote',
-          'status', 'createdAt', 'updatedAt'
-        ])
-        && incoming().id == requestId
-        && incoming().motoristId == request.auth.uid
-        && incoming().status == 'open'
+        && incoming().status == 'active'
+        && incoming().paidUntilMs > request.time.toMillis()
         && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && incoming().updatedAt == request.time
+        && !exists(/databases/$(database)/documents/authorSubscriptionPayments/$(incoming().lastPaymentId))
+        && existsAfter(/databases/$(database)/documents/authorSubscriptionPayments/$(incoming().lastPaymentId))
+        && getAfter(/databases/$(database)/documents/authorSubscriptionPayments/$(incoming().lastPaymentId)).data.authorId == authorId
+        && getAfter(/databases/$(database)/documents/authorSubscriptionPayments/$(incoming().lastPaymentId)).data.validUntilMs == incoming().paidUntilMs;
 
-      allow update: if isValidId(requestId)
-        && isVerifiedUser()
-        && isValidRequest(incoming())
-        && existing().status != 'completed'
-        && existing().status != 'cancelled'
-        && incoming().id == existing().id
-        && incoming().motoristId == existing().motoristId
+      allow update: if isValidId(authorId)
+        && isOwner(authorId)
+        && isValidAuthorSubscription(incoming())
+        && incoming().uid == existing().uid
+        && incoming().uid == authorId
+        && incoming().monthlyFeeUsd == existing().monthlyFeeUsd
+        && incoming().recipientAccount == existing().recipientAccount
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && (
-          // Action: Motorist adjusts offer price while open
-          (
-            existing().motoristId == request.auth.uid
-            && existing().status == 'open'
-            && incoming().status == 'open'
-            && incoming().diff(existing()).affectedKeys().hasOnly(['offerPriceUsd', 'updatedAt'])
-          )
+          // Action 1: Update auto-renew / pen name / preferred method
+          incoming().diff(existing()).affectedKeys().hasOnly(['penName', 'autoRenew', 'preferredMethod', 'updatedAt'])
           ||
-          // Action: Motorist shares or updates global payment method, country, & rail note
+          // Action 2: Renew $1/month subscription atomically with payment ledger receipt
           (
-            existing().motoristId == request.auth.uid
-            && existing().status in ['open', 'accepted', 'arrived', 'in_progress', 'payment_pending']
-            && incoming().status == existing().status
-            && incoming().diff(existing()).affectedKeys().hasOnly(['paymentMethod', 'countryCode', 'paymentDetailNote', 'updatedAt'])
-          )
-          ||
-          // Action: Motorist cancels request
-          (
-            existing().motoristId == request.auth.uid
-            && existing().status in ['open', 'accepted']
-            && incoming().status == 'cancelled'
-            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
-          )
-          ||
-          // Action: Motorist accepts a mechanic bid
-          (
-            existing().motoristId == request.auth.uid
-            && existing().status == 'open'
-            && incoming().status == 'accepted'
+            incoming().status == 'active'
+            && incoming().paidUntilMs > existing().paidUntilMs
+            && !exists(/databases/$(database)/documents/authorSubscriptionPayments/$(incoming().lastPaymentId))
+            && existsAfter(/databases/$(database)/documents/authorSubscriptionPayments/$(incoming().lastPaymentId))
+            && getAfter(/databases/$(database)/documents/authorSubscriptionPayments/$(incoming().lastPaymentId)).data.authorId == authorId
+            && getAfter(/databases/$(database)/documents/authorSubscriptionPayments/$(incoming().lastPaymentId)).data.validUntilMs == incoming().paidUntilMs
             && incoming().diff(existing()).affectedKeys().hasOnly([
-              'status', 'acceptedBidId', 'acceptedMechanicId',
-              'acceptedMechanicName', 'agreedPriceUsd',
-              'qrPaymentUri', 'qrPaymentLabel', 'updatedAt'
+              'status', 'paidUntilMs', 'lastPaymentId', 'preferredMethod', 'updatedAt'
             ])
-            && exists(/databases/$(database)/documents/requests/$(requestId)/bids/$(incoming().acceptedBidId))
-          )
-          ||
-          // Action: Assigned mechanic progresses dispatch lifecycle
-          (
-            existing().acceptedMechanicId == request.auth.uid
-            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
-            && (
-              (existing().status == 'accepted' && incoming().status == 'arrived')
-              || (existing().status == 'arrived' && incoming().status == 'in_progress')
-              || (existing().status == 'in_progress' && incoming().status == 'payment_pending')
-            )
-          )
-          ||
-          // Action: Assigned mechanic generates a unique job-specific payment QR code
-          (
-            existing().acceptedMechanicId == request.auth.uid
-            && existing().status in ['accepted', 'arrived', 'in_progress', 'payment_pending']
-            && incoming().status == existing().status
-            && incoming().diff(existing()).affectedKeys().hasOnly(['qrPaymentUri', 'qrPaymentLabel', 'updatedAt'])
-          )
-          ||
-          // Action: Payment confirmed (any global method) -> job completed
-          (
-            (existing().motoristId == request.auth.uid || existing().acceptedMechanicId == request.auth.uid)
-            && existing().status == 'payment_pending'
-            && incoming().status == 'completed'
-            && incoming().paymentConfirmedAt == request.time
-            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'paymentMethod', 'countryCode', 'paymentDetailNote', 'paymentConfirmedAt', 'updatedAt'])
           )
         );
       allow delete: if false;
-
-      // Subcollection: Mechanic Bids on a Breakdown Request (Master Gate)
-      match /bids/{bidId} {
-        allow get: if isValidId(requestId)
-          && isValidId(bidId)
-          && isVerifiedUser()
-          && resource != null
-          && (existing().mechanicId == request.auth.uid || existing().motoristId == request.auth.uid);
-        allow list: if isVerifiedUser()
-          && (resource.data.mechanicId == request.auth.uid || resource.data.motoristId == request.auth.uid);
-
-        allow create: if isValidId(requestId)
-          && isValidId(bidId)
-          && isVerifiedUser()
-          && isValidBid(incoming())
-          && incoming().id == bidId
-          && incoming().requestId == requestId
-          && incoming().mechanicId == request.auth.uid
-          && incoming().status == 'pending'
-          && incoming().createdAt == request.time
-          && incoming().updatedAt == request.time
-          && get(/databases/$(database)/documents/requests/$(requestId)).data.status == 'open'
-          && incoming().motoristId == get(/databases/$(database)/documents/requests/$(requestId)).data.motoristId
-          && mechanicCanBid(request.auth.uid);
-
-        allow update: if isValidId(requestId)
-          && isValidId(bidId)
-          && isVerifiedUser()
-          && isValidBid(incoming())
-          && existing().status == 'pending'
-          && incoming().id == existing().id
-          && incoming().requestId == existing().requestId
-          && incoming().motoristId == existing().motoristId
-          && incoming().mechanicId == existing().mechanicId
-          && incoming().createdAt == existing().createdAt
-          && incoming().updatedAt == request.time
-          && (
-            // Action: Mechanic updates bid amount/ETA or withdraws
-            (
-              existing().mechanicId == request.auth.uid
-              && incoming().status in ['pending', 'withdrawn']
-              && incoming().diff(existing()).affectedKeys().hasOnly(['bidAmountUsd', 'etaMinutes', 'note', 'status', 'updatedAt'])
-            )
-            ||
-            // Action: Motorist accepts or rejects bid
-            (
-              existing().motoristId == request.auth.uid
-              && incoming().status in ['accepted', 'rejected']
-              && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
-            )
-          );
-        allow delete: if false;
-      }
     }
 
-    // Mechanic $4/Month Subscription Payments Ledger
-    match /subscriptionPayments/{paymentId} {
-      allow get: if isValidId(paymentId) && isVerifiedUser() && resource != null && existing().mechanicId == request.auth.uid;
-      allow list: if isVerifiedUser() && resource.data.mechanicId == request.auth.uid;
+    // Immutable $1/Month Author Subscription Payment Ledger (recipient 4638330011712851)
+    match /authorSubscriptionPayments/{paymentId} {
+      allow get: if isValidId(paymentId) && isVerifiedUser() && resource != null && (existing().authorId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.authorId == request.auth.uid || isAdmin());
       allow create: if isValidId(paymentId)
         && isVerifiedUser()
-        && isValidSubscriptionPayment(incoming())
+        && isValidAuthorSubscriptionPayment(incoming())
         && incoming().id == paymentId
         && incoming().paidAt == request.time
-        && getAfter(/databases/$(database)/documents/mechanics/$(request.auth.uid)).data.subscriptionStatus == 'active'
-        && getAfter(/databases/$(database)/documents/mechanics/$(request.auth.uid)).data.subscriptionPaidUntilMs == incoming().validUntilMs
-        && getAfter(/databases/$(database)/documents/mechanics/$(request.auth.uid)).data.lastPaymentId == paymentId;
+        && existsAfter(/databases/$(database)/documents/authorSubscriptions/$(request.auth.uid))
+        && getAfter(/databases/$(database)/documents/authorSubscriptions/$(request.auth.uid)).data.status == 'active'
+        && getAfter(/databases/$(database)/documents/authorSubscriptions/$(request.auth.uid)).data.lastPaymentId == paymentId
+        && getAfter(/databases/$(database)/documents/authorSubscriptions/$(request.auth.uid)).data.paidUntilMs == incoming().validUntilMs;
       allow update, delete: if false;
     }
 
-    // Post-Repair 1-5 Star Ratings (keyed 1:1 by completed requestId)
+    // Debut Author Book Campaigns
+    match /books/{bookId} {
+      allow get: if isValidId(bookId)
+        && resource != null
+        && (existing().visibility == 'public' || (isSignedIn() && existing().authorId == request.auth.uid));
+      allow list: if resource.data.visibility == 'public'
+        || (isSignedIn() && resource.data.authorId == request.auth.uid);
+
+      allow create: if isValidId(bookId)
+        && isVerifiedUser()
+        && isValidBook(incoming())
+        && incoming().id == bookId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (
+            incoming().authorId == request.auth.uid
+            && !('isShowcase' in incoming())
+            && incoming().raisedUsd == 0
+            && incoming().donorCount == 0
+            && incoming().ratingSum == 0
+            && incoming().ratingCount == 0
+            && incoming().averageRating == 0
+            && incoming().status == 'seeking_funding'
+            && authorCanPublish(request.auth.uid)
+          )
+          ||
+          (
+            isAdmin()
+            && incoming().isShowcase == true
+          )
+        );
+
+      allow update: if isValidId(bookId)
+        && isVerifiedUser()
+        && isValidBook(incoming())
+        && incoming().id == existing().id
+        && incoming().authorId == existing().authorId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1a: Author updates editorial & budget fields before donations or publication
+          (
+            existing().authorId == request.auth.uid
+            && existing().status != 'published'
+            && existing().donorCount == 0
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'authorPenName', 'authorBio', 'title', 'subtitle', 'genre', 'format',
+              'pageCount', 'pitch', 'excerptTitle', 'excerptText', 'coverImageUrl',
+              'coverTone', 'goalUsd', 'editingCostUsd', 'designCostUsd', 'printingCostUsd',
+              'visibility', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 1b: Author refines editorial fields (synopsis, excerpt, cover, bio) even after donations/publishing
+          (
+            existing().authorId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'authorPenName', 'authorBio', 'title', 'subtitle', 'genre', 'format',
+              'pageCount', 'pitch', 'excerptTitle', 'excerptText', 'coverImageUrl',
+              'coverTone', 'visibility', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 2: Author transitions a funded book to published
+          (
+            existing().authorId == request.auth.uid
+            && existing().status == 'funded'
+            && incoming().status == 'published'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+          ||
+          // Action 3: Reader donates atomically with /donations/{lastDonationId}
+          (
+            isValidId(incoming().lastDonationId)
+            && !exists(/databases/$(database)/documents/donations/$(incoming().lastDonationId))
+            && existsAfter(/databases/$(database)/documents/donations/$(incoming().lastDonationId))
+            && getAfter(/databases/$(database)/documents/donations/$(incoming().lastDonationId)).data.bookId == bookId
+            && getAfter(/databases/$(database)/documents/donations/$(incoming().lastDonationId)).data.donorId == request.auth.uid
+            && incoming().donorCount == existing().donorCount + 1
+            && incoming().raisedUsd == existing().raisedUsd + getAfter(/databases/$(database)/documents/donations/$(incoming().lastDonationId)).data.amountUsd
+            && (
+              (incoming().raisedUsd >= existing().goalUsd && incoming().status in ['funded', 'published'])
+              || (incoming().raisedUsd < existing().goalUsd && incoming().status == existing().status)
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'raisedUsd', 'donorCount', 'lastDonationId', 'status', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 4: Reader rates book atomically with /ratings/{lastRatingId}
+          (
+            existing().authorId != request.auth.uid
+            && isValidId(incoming().lastRatingId)
+            && incoming().lastRatingId == bookId + '_' + request.auth.uid
+            && !exists(/databases/$(database)/documents/ratings/$(incoming().lastRatingId))
+            && existsAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId))
+            && getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.bookId == bookId
+            && getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.reviewerId == request.auth.uid
+            && incoming().ratingCount == existing().ratingCount + 1
+            && incoming().ratingSum == existing().ratingSum + getAfter(/databases/$(database)/documents/ratings/$(incoming().lastRatingId)).data.stars
+            && incoming().averageRating * incoming().ratingCount >= incoming().ratingSum - (incoming().ratingCount * 0.05)
+            && incoming().averageRating * incoming().ratingCount <= incoming().ratingSum + (incoming().ratingCount * 0.05)
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'ratingSum', 'ratingCount', 'averageRating', 'lastRatingId', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isValidId(bookId)
+        && isVerifiedUser()
+        && existing().authorId == request.auth.uid
+        && existing().donorCount == 0
+        && existing().ratingCount == 0;
+    }
+
+    // Immutable Book Publishing Donations
+    match /donations/{donationId} {
+      allow get: if isValidId(donationId)
+        && resource != null
+        && (existing().visibility == 'public' || (isSignedIn() && (existing().donorId == request.auth.uid || existing().authorId == request.auth.uid)));
+      allow list: if resource.data.visibility == 'public'
+        || (isSignedIn() && (resource.data.donorId == request.auth.uid || resource.data.authorId == request.auth.uid));
+
+      allow create: if isValidId(donationId)
+        && isVerifiedUser()
+        && isValidDonation(incoming())
+        && incoming().id == donationId
+        && incoming().donorId == request.auth.uid
+        && incoming().visibility == 'public'
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/books/$(incoming().bookId))
+        && get(/databases/$(database)/documents/books/$(incoming().bookId)).data.authorId == incoming().authorId
+        && existsAfter(/databases/$(database)/documents/books/$(incoming().bookId))
+        && getAfter(/databases/$(database)/documents/books/$(incoming().bookId)).data.lastDonationId == donationId;
+
+      allow update, delete: if false;
+    }
+
+    // Immutable 1-5 Star Reader Ratings (1 per reviewer per book)
     match /ratings/{ratingId} {
       allow get: if isValidId(ratingId)
-        && isVerifiedUser()
         && resource != null
-        && (existing().motoristId == request.auth.uid || existing().mechanicId == request.auth.uid);
-      allow list: if isVerifiedUser()
-        && (resource.data.motoristId == request.auth.uid || resource.data.mechanicId == request.auth.uid);
+        && (existing().visibility == 'public' || (isSignedIn() && (existing().reviewerId == request.auth.uid || existing().authorId == request.auth.uid)));
+      allow list: if resource.data.visibility == 'public'
+        || (isSignedIn() && (resource.data.reviewerId == request.auth.uid || resource.data.authorId == request.auth.uid));
+
       allow create: if isValidId(ratingId)
         && isVerifiedUser()
         && isValidRating(incoming())
         && incoming().id == ratingId
+        && incoming().reviewerId == request.auth.uid
+        && ratingId == incoming().bookId + '_' + request.auth.uid
+        && incoming().visibility == 'public'
         && incoming().createdAt == request.time
-        && exists(/databases/$(database)/documents/requests/$(ratingId))
-        && get(/databases/$(database)/documents/requests/$(ratingId)).data.status == 'completed'
-        && get(/databases/$(database)/documents/requests/$(ratingId)).data.motoristId == request.auth.uid
-        && get(/databases/$(database)/documents/requests/$(ratingId)).data.acceptedMechanicId == incoming().mechanicId
-        && incoming().mechanicId != request.auth.uid
-        && existsAfter(/databases/$(database)/documents/mechanics/$(incoming().mechanicId))
-        && getAfter(/databases/$(database)/documents/mechanics/$(incoming().mechanicId)).data.lastRatingId == ratingId;
+        && exists(/databases/$(database)/documents/books/$(incoming().bookId))
+        && get(/databases/$(database)/documents/books/$(incoming().bookId)).data.authorId == incoming().authorId
+        && get(/databases/$(database)/documents/books/$(incoming().bookId)).data.authorId != request.auth.uid
+        && existsAfter(/databases/$(database)/documents/books/$(incoming().bookId))
+        && getAfter(/databases/$(database)/documents/books/$(incoming().bookId)).data.lastRatingId == ratingId;
+
       allow update, delete: if false;
+    }
+
+    // Public Author Follow Records (1 per follower per author)
+    match /authorFollows/{followId} {
+      allow get: if isValidId(followId)
+        && resource != null
+        && (existing().visibility == 'public' || (isSignedIn() && existing().followerId == request.auth.uid));
+      allow list: if resource.data.visibility == 'public'
+        || (isSignedIn() && resource.data.followerId == request.auth.uid);
+
+      allow create: if isValidId(followId)
+        && isVerifiedUser()
+        && isValidAuthorFollow(incoming())
+        && incoming().id == followId
+        && incoming().followerId == request.auth.uid
+        && incoming().authorId != request.auth.uid
+        && followId == incoming().authorId + '_' + request.auth.uid
+        && incoming().visibility == 'public'
+        && incoming().createdAt == request.time;
+
+      allow update: if false;
+
+      allow delete: if isValidId(followId)
+        && isVerifiedUser()
+        && existing().followerId == request.auth.uid;
     }
   }
 }
